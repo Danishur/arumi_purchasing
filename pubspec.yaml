@@ -1,0 +1,31 @@
+name: purchasing_intermediary
+description: "Aplikasi Purchasing Intermediary - PT Arumi Money Pocket"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Koneksi langsung Flutter <-> MySQL (tanpa backend API terpisah).
+  # Package pure-Dart yang sudah lama & stabil, API query-nya jarang
+  # berubah antar versi.
+  mysql1: ^0.20.0
+
+  # State management (konsisten dengan project sebelumnya)
+  provider: ^6.1.2
+
+  # Format mata uang & tanggal
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
