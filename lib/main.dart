@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/customer_provider.dart';
-import 'screens/customer_list_screen.dart';
+import 'providers/vendor_provider.dart';
+import 'screens/home_screen.dart';
 import 'utils/app_theme.dart';
 
 void main() {
@@ -16,8 +17,9 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
-        // Provider modul lain (Vendor, Material, RFQ) menyusul di
-        // minggu-minggu berikutnya sesuai timeline.
+        ChangeNotifierProvider(create: (_) => VendorProvider()),
+        // Provider modul lain (Material, RFQ) menyusul di minggu-minggu
+        // berikutnya sesuai timeline.
       ],
       child: MaterialApp(
         title: 'Purchasing Intermediary',
@@ -31,10 +33,10 @@ class MyApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        // Untuk sekarang, home langsung ke Customer (minggu 1 timeline).
-        // Nanti kalau modul Vendor/Material/RFQ sudah dibangun, ini akan
-        // diganti jadi layar Home dengan navigasi ke semua modul.
-        home: const CustomerListScreen(),
+        // Sekarang sudah ada 2 modul aktif (Customer & Vendor), jadi
+        // home diganti ke HomeScreen (menu navigasi) -- sebelumnya
+        // langsung ke CustomerListScreen waktu modul Vendor belum ada.
+        home: const HomeScreen(),
       ),
     );
   }

@@ -180,4 +180,160 @@ class DatabaseService {
     final placeholders = List.filled(ids.length, '?').join(', ');
     await conn.query('DELETE FROM customers WHERE id IN ($placeholders)', ids);
   }
+
+  // ==================== VENDOR ====================
+
+  Future<List<Map<String, dynamic>>> getVendors() async {
+    final conn = await _conn;
+    final results = await conn.query('SELECT * FROM vendors ORDER BY id DESC');
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getContactsByVendorId(int vendorId) async {
+    final conn = await _conn;
+    final results = await conn.query(
+      'SELECT * FROM vendor_contacts WHERE vendor_id = ? ORDER BY id ASC',
+      [vendorId],
+    );
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getProductsByVendorId(int vendorId) async {
+    final conn = await _conn;
+    final results = await conn.query(
+      'SELECT * FROM vendor_products WHERE vendor_id = ? ORDER BY id ASC',
+      [vendorId],
+    );
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// Insert vendor baru + semua PIC dan Produk/Brand-nya sekaligus.
+  /// Mengembalikan id vendor yang baru dibuat.
+  Future<int> insertVendor(
+    Map<String, dynamic> vendorRow,
+    List<Map<String, dynamic>> contacts,
+    List<Map<String, dynamic>> products,
+  ) async {
+    final conn = await _conn;
+    final result = await conn.query(
+      '''INSERT INTO vendors
+         (vendor_name, legal_standing, npwp, is_verified, terms_of_payment,
+          scope_of_work, sub_sow, supply_chain_classification, internal_note,
+          vendor_address, pic_website, bank_name, bank_account_number,
+          bank_account_holder, bank_currency, bank_swift_code, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+      [
+        vendorRow['vendor_name'],
+        vendorRow['legal_standing'],
+        vendorRow['npwp'],
+        vendorRow['is_verified'],
+        vendorRow['terms_of_payment'],
+        vendorRow['scope_of_work'],
+        vendorRow['sub_sow'],
+        vendorRow['supply_chain_classification'],
+        vendorRow['internal_note'],
+        vendorRow['vendor_address'],
+        vendorRow['pic_website'],
+        vendorRow['bank_name'],
+        vendorRow['bank_account_number'],
+        vendorRow['bank_account_holder'],
+        vendorRow['bank_currency'],
+        vendorRow['bank_swift_code'],
+        vendorRow['status'],
+      ],
+    );
+    final vendorId = result.insertId!;
+
+    for (final c in contacts) {
+      await conn.query(
+        '''INSERT INTO vendor_contacts (vendor_id, pic_name, pic_position, pic_contact, pic_email)
+           VALUES (?, ?, ?, ?, ?)''',
+        [vendorId, c['pic_name'], c['pic_position'], c['pic_contact'], c['pic_email']],
+      );
+    }
+
+    for (final p in products) {
+      await conn.query(
+        'INSERT INTO vendor_products (vendor_id, product_name) VALUES (?, ?)',
+        [vendorId, p['product_name']],
+      );
+    }
+
+    return vendorId;
+  }
+
+  /// Update data vendor + ganti seluruh daftar PIC & Produk/Brand-nya
+  /// (hapus yang lama, masukkan ulang yang baru) -- pola sama dengan
+  /// updateCustomer.
+  Future<void> updateVendor(
+    Map<String, dynamic> vendorRow,
+    List<Map<String, dynamic>> contacts,
+    List<Map<String, dynamic>> products,
+  ) async {
+    final conn = await _conn;
+    final id = vendorRow['id'];
+
+    await conn.query(
+      '''UPDATE vendors
+         SET vendor_name = ?, legal_standing = ?, npwp = ?, is_verified = ?,
+             terms_of_payment = ?, scope_of_work = ?, sub_sow = ?,
+             supply_chain_classification = ?, internal_note = ?,
+             vendor_address = ?, pic_website = ?, bank_name = ?,
+             bank_account_number = ?, bank_account_holder = ?,
+             bank_currency = ?, bank_swift_code = ?, status = ?
+         WHERE id = ?''',
+      [
+        vendorRow['vendor_name'],
+        vendorRow['legal_standing'],
+        vendorRow['npwp'],
+        vendorRow['is_verified'],
+        vendorRow['terms_of_payment'],
+        vendorRow['scope_of_work'],
+        vendorRow['sub_sow'],
+        vendorRow['supply_chain_classification'],
+        vendorRow['internal_note'],
+        vendorRow['vendor_address'],
+        vendorRow['pic_website'],
+        vendorRow['bank_name'],
+        vendorRow['bank_account_number'],
+        vendorRow['bank_account_holder'],
+        vendorRow['bank_currency'],
+        vendorRow['bank_swift_code'],
+        vendorRow['status'],
+        id,
+      ],
+    );
+
+    await conn.query('DELETE FROM vendor_contacts WHERE vendor_id = ?', [id]);
+    for (final c in contacts) {
+      await conn.query(
+        '''INSERT INTO vendor_contacts (vendor_id, pic_name, pic_position, pic_contact, pic_email)
+           VALUES (?, ?, ?, ?, ?)''',
+        [id, c['pic_name'], c['pic_position'], c['pic_contact'], c['pic_email']],
+      );
+    }
+
+    await conn.query('DELETE FROM vendor_products WHERE vendor_id = ?', [id]);
+    for (final p in products) {
+      await conn.query(
+        'INSERT INTO vendor_products (vendor_id, product_name) VALUES (?, ?)',
+        [id, p['product_name']],
+      );
+    }
+  }
+
+  Future<void> deleteVendor(int id) async {
+    final conn = await _conn;
+    await conn.query('DELETE FROM vendors WHERE id = ?', [id]);
+  }
+
+  /// Hapus banyak vendor sekaligus (fitur select multi di layar list).
+  /// `vendor_contacts` & `vendor_products` ikut kehapus otomatis lewat
+  /// FK `ON DELETE CASCADE` (lihat sql/03_create_vendor_tables.sql).
+  Future<void> deleteVendors(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final conn = await _conn;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    await conn.query('DELETE FROM vendors WHERE id IN ($placeholders)', ids);
+  }
 }
