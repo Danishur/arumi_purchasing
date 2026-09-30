@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/customer_provider.dart';
+import 'providers/material_provider.dart';
 import 'providers/vendor_provider.dart';
 import 'screens/home_screen.dart';
 import 'utils/app_theme.dart';
@@ -18,8 +19,9 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
         ChangeNotifierProvider(create: (_) => VendorProvider()),
-        // Provider modul lain (Material, RFQ) menyusul di minggu-minggu
-        // berikutnya sesuai timeline.
+        ChangeNotifierProvider(create: (_) => MaterialProvider()),
+        // Provider modul RFQ menyusul di minggu-minggu berikutnya sesuai
+        // timeline.
       ],
       child: MaterialApp(
         title: 'Purchasing Intermediary',
@@ -33,9 +35,8 @@ class MyApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        // Sekarang sudah ada 2 modul aktif (Customer & Vendor), jadi
-        // home diganti ke HomeScreen (menu navigasi) -- sebelumnya
-        // langsung ke CustomerListScreen waktu modul Vendor belum ada.
+        // Sekarang sudah ada 3 modul aktif (Customer, Vendor & Material)
+        // lewat HomeScreen (menu navigasi).
         home: const HomeScreen(),
       ),
     );

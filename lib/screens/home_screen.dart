@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import 'customer_list_screen.dart';
+import 'material_list_screen.dart';
 import 'vendor_list_screen.dart';
 
-/// Layar Home -- menu navigasi ke tiap modul (Customer, Vendor, dan
-/// modul lain yang menyusul sesuai timeline: Material, RFQ).
+/// Layar Home -- menu navigasi ke tiap modul (Customer, Vendor,
+/// Material, dan RFQ yang menyusul sesuai timeline).
 /// Sebelumnya `home:` di main.dart langsung ke CustomerListScreen
 /// (minggu 1, waktu modul Vendor belum ada) -- sekarang dengan 2 modul
 /// aktif, perlu 1 pintu masuk supaya user bisa pilih mau buka yang mana.
@@ -49,9 +50,11 @@ class HomeScreen extends StatelessWidget {
             context,
             icon: Icons.inventory_2_outlined,
             title: 'Material',
-            subtitle: 'Menyusul (Bulan 2 Pekan ke 3)',
-            enabled: false,
-            onTap: () {},
+            subtitle: 'Data master barang, harga, & pengiriman',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MaterialListScreen()),
+            ),
           ),
           const SizedBox(height: 12),
           _menuCard(

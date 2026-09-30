@@ -336,4 +336,187 @@ class DatabaseService {
     final placeholders = List.filled(ids.length, '?').join(', ');
     await conn.query('DELETE FROM vendors WHERE id IN ($placeholders)', ids);
   }
+
+  // ==================== MATERIAL ====================
+
+  /// LEFT JOIN ke `vendors` supaya `vendor_name` ikut kebawa buat
+  /// ditampilkan di list/detail, tanpa perlu query terpisah lagi ke
+  /// tabel vendors untuk tiap baris material.
+  Future<List<Map<String, dynamic>>> getMaterials() async {
+    final conn = await _conn;
+    final results = await conn.query('''
+      SELECT m.*, v.vendor_name AS vendor_name
+      FROM materials m
+      LEFT JOIN vendors v ON v.id = m.vendor_id
+      ORDER BY m.id DESC
+    ''');
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getDiscountsByMaterialId(int materialId) async {
+    final conn = await _conn;
+    final results = await conn.query(
+      'SELECT * FROM material_discounts WHERE material_id = ? ORDER BY id ASC',
+      [materialId],
+    );
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// Insert material baru + semua baris diskonnya sekaligus.
+  /// Mengembalikan id material yang baru dibuat.
+  Future<int> insertMaterial(
+    Map<String, dynamic> materialRow,
+    List<Map<String, dynamic>> discounts,
+  ) async {
+    final conn = await _conn;
+    final result = await conn.query(
+      '''INSERT INTO materials
+         (vendor_id, scope_of_work, sub_sow, brand_unit_installed_on,
+          type_unit_installed_on, item_description, category, item_manufacturer,
+          origin_country, item_type, item_part_number, size, photo_path,
+          reference_genuine_part_number, existing_item_description, quantity, unit,
+          price_quote, price_quote_date, total_discount, price_discount, total_price,
+          vat, dpp, vat_value, lead_time_days, delivery_terms, delivery_address,
+          dim_p, dim_l, dim_t, dim_unit, weight, weight_unit, documents,
+          is_transaction, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+      [
+        materialRow['vendor_id'],
+        materialRow['scope_of_work'],
+        materialRow['sub_sow'],
+        materialRow['brand_unit_installed_on'],
+        materialRow['type_unit_installed_on'],
+        materialRow['item_description'],
+        materialRow['category'],
+        materialRow['item_manufacturer'],
+        materialRow['origin_country'],
+        materialRow['item_type'],
+        materialRow['item_part_number'],
+        materialRow['size'],
+        materialRow['photo_path'],
+        materialRow['reference_genuine_part_number'],
+        materialRow['existing_item_description'],
+        materialRow['quantity'],
+        materialRow['unit'],
+        materialRow['price_quote'],
+        materialRow['price_quote_date'],
+        materialRow['total_discount'],
+        materialRow['price_discount'],
+        materialRow['total_price'],
+        materialRow['vat'],
+        materialRow['dpp'],
+        materialRow['vat_value'],
+        materialRow['lead_time_days'],
+        materialRow['delivery_terms'],
+        materialRow['delivery_address'],
+        materialRow['dim_p'],
+        materialRow['dim_l'],
+        materialRow['dim_t'],
+        materialRow['dim_unit'],
+        materialRow['weight'],
+        materialRow['weight_unit'],
+        materialRow['documents'],
+        materialRow['is_transaction'],
+        materialRow['status'],
+      ],
+    );
+    final materialId = result.insertId!;
+
+    for (final d in discounts) {
+      await conn.query(
+        'INSERT INTO material_discounts (material_id, discount_amount, discount_date) VALUES (?, ?, ?)',
+        [materialId, d['discount_amount'], d['discount_date']],
+      );
+    }
+
+    return materialId;
+  }
+
+  /// Update data material + ganti seluruh daftar diskonnya (hapus yang
+  /// lama, masukkan ulang yang baru) -- pola sama dengan updateVendor.
+  Future<void> updateMaterial(
+    Map<String, dynamic> materialRow,
+    List<Map<String, dynamic>> discounts,
+  ) async {
+    final conn = await _conn;
+    final id = materialRow['id'];
+
+    await conn.query(
+      '''UPDATE materials
+         SET vendor_id = ?, scope_of_work = ?, sub_sow = ?, brand_unit_installed_on = ?,
+             type_unit_installed_on = ?, item_description = ?, category = ?,
+             item_manufacturer = ?, origin_country = ?, item_type = ?, item_part_number = ?,
+             size = ?, photo_path = ?, reference_genuine_part_number = ?,
+             existing_item_description = ?, quantity = ?, unit = ?, price_quote = ?,
+             price_quote_date = ?, total_discount = ?, price_discount = ?, total_price = ?,
+             vat = ?, dpp = ?, vat_value = ?, lead_time_days = ?, delivery_terms = ?,
+             delivery_address = ?, dim_p = ?, dim_l = ?, dim_t = ?, dim_unit = ?,
+             weight = ?, weight_unit = ?, documents = ?, is_transaction = ?, status = ?
+         WHERE id = ?''',
+      [
+        materialRow['vendor_id'],
+        materialRow['scope_of_work'],
+        materialRow['sub_sow'],
+        materialRow['brand_unit_installed_on'],
+        materialRow['type_unit_installed_on'],
+        materialRow['item_description'],
+        materialRow['category'],
+        materialRow['item_manufacturer'],
+        materialRow['origin_country'],
+        materialRow['item_type'],
+        materialRow['item_part_number'],
+        materialRow['size'],
+        materialRow['photo_path'],
+        materialRow['reference_genuine_part_number'],
+        materialRow['existing_item_description'],
+        materialRow['quantity'],
+        materialRow['unit'],
+        materialRow['price_quote'],
+        materialRow['price_quote_date'],
+        materialRow['total_discount'],
+        materialRow['price_discount'],
+        materialRow['total_price'],
+        materialRow['vat'],
+        materialRow['dpp'],
+        materialRow['vat_value'],
+        materialRow['lead_time_days'],
+        materialRow['delivery_terms'],
+        materialRow['delivery_address'],
+        materialRow['dim_p'],
+        materialRow['dim_l'],
+        materialRow['dim_t'],
+        materialRow['dim_unit'],
+        materialRow['weight'],
+        materialRow['weight_unit'],
+        materialRow['documents'],
+        materialRow['is_transaction'],
+        materialRow['status'],
+        id,
+      ],
+    );
+
+    await conn.query('DELETE FROM material_discounts WHERE material_id = ?', [id]);
+    for (final d in discounts) {
+      await conn.query(
+        'INSERT INTO material_discounts (material_id, discount_amount, discount_date) VALUES (?, ?, ?)',
+        [id, d['discount_amount'], d['discount_date']],
+      );
+    }
+  }
+
+  Future<void> deleteMaterial(int id) async {
+    final conn = await _conn;
+    await conn.query('DELETE FROM materials WHERE id = ?', [id]);
+  }
+
+  /// Hapus banyak material sekaligus (fitur select multi di layar list).
+  /// `material_discounts` ikut kehapus otomatis lewat FK `ON DELETE
+  /// CASCADE` (lihat sql/04_create_material_tables.sql).
+  Future<void> deleteMaterials(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final conn = await _conn;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    await conn.query('DELETE FROM materials WHERE id IN ($placeholders)', ids);
+  }
 }
