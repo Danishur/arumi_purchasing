@@ -56,8 +56,6 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
   final _refGenuinePartCtrl = TextEditingController();
   final _existingItemDescCtrl = TextEditingController();
 
-  final _quantityCtrl = TextEditingController(text: '0');
-  String? _unit;
 
   final _priceQuoteCtrl = TextEditingController(text: '0');
   DateTime? _priceQuoteDate;
@@ -106,8 +104,6 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
       _photoPath = m.photoPath;
       _refGenuinePartCtrl.text = m.referenceGenuinePartNumber ?? '';
       _existingItemDescCtrl.text = m.existingItemDescription ?? '';
-      _quantityCtrl.text = '${m.quantity}';
-      _unit = m.unit;
       _priceQuoteCtrl.text = _trimZero(m.priceQuote);
       _priceQuoteDate = m.priceQuoteDate;
       _vat = m.vat;
@@ -188,7 +184,6 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
     _sizeCtrl.dispose();
     _refGenuinePartCtrl.dispose();
     _existingItemDescCtrl.dispose();
-    _quantityCtrl.dispose();
     _priceQuoteCtrl.dispose();
     _leadTimeCtrl.dispose();
     _deliveryAddressCtrl.dispose();
@@ -300,16 +295,6 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
     if (result != null) setState(() => _category = result);
   }
 
-  Future<void> _pickUnit() async {
-    final result = await showOptionPickerDialog(
-      context: context,
-      title: 'Unit',
-      options: MaterialOptions.unit,
-      selectedValue: _unit,
-      withSearch: true,
-    );
-    if (result != null) setState(() => _unit = result);
-  }
 
   Future<void> _pickDocuments() async {
     final result = await showMultiOptionPickerDialog(
@@ -388,8 +373,6 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
           _refGenuinePartCtrl.text.trim().isEmpty ? null : _refGenuinePartCtrl.text.trim(),
       existingItemDescription:
           _existingItemDescCtrl.text.trim().isEmpty ? null : _existingItemDescCtrl.text.trim(),
-      quantity: int.tryParse(_quantityCtrl.text) ?? 0,
-      unit: _unit,
       priceQuote: _priceQuoteValue,
       priceQuoteDate: _priceQuoteDate,
       totalDiscount: _totalDiscount,
@@ -548,31 +531,26 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
 
                   // 15. Reference Genuine Part Number
                   _label('Reference Genuine Part Number – for OEM / Non-Brand / Private Label only'),
-                  _textField(controller: _refGenuinePartCtrl, hint: 'Part number'),
+                  _textField(controller: _refGenuinePartCtrl, hint: 'Part number genuine acuan'),
                   const SizedBox(height: 16),
 
                   // 16. Existing Item Description
-                  _label('Existing Item Description'),
+                  _label('Existing Item Description – if replacement'),
                   const SizedBox(height: 4),
                   const Text(
-                    'Diisi hanya kalau item ini pengganti/beda dari mesin/part awal ',
+                    'Diisi hanya kalau item ini pengganti/beda dari mesin/part awal '
+                    '(mis. supply printer HP menggantikan Canon) -- kosongkan kalau sama '
+                    'dengan yang sudah ada.',
                     style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 6),
                   _textField(controller: _existingItemDescCtrl, hint: 'Deskripsi item lama (opsional)', maxLines: 2),
                   const SizedBox(height: 20),
 
-                  _sectionTitle('Quantity & Price'),
-
-                  // 17. Quantity
-                  _label('Quantity'),
-                  _stepperField(controller: _quantityCtrl),
-                  const SizedBox(height: 16),
-
-                  // 18. Unit
-                  _label('Unit'),
-                  _pickerBox(value: _unit, hint: '-- Pilih Unit --', onTap: _pickUnit),
-                  const SizedBox(height: 16),
+                  // CATATAN REVISI: section "Quantity & Price" sekarang cuma
+                  // "Price" saja -- Quantity & Unit dipindah ke RFQ (dipilih
+                  // per baris Material List di form RFQ), sesuai revisi owner.
+                  _sectionTitle('Price'),
 
                   // 19. Price - Quote
                   _label('Price - Quote'),
@@ -661,7 +639,7 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
                   _label('Total Price'),
                   const SizedBox(height: 2),
                   const Text(
-                    '',
+                    'Mengacu ke Quote, kalau sudah ada diskon maka mengacu ke Price - Discount.',
                     style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                   _readOnlyBox('Rp ${_rupiahFmt.format(_totalPrice)}'),
@@ -734,7 +712,7 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
                   const SizedBox(height: 16),
 
                   // 29. Weight
-                  _label('Weight (Berat)'),
+                  _label('Weight'),
                   const SizedBox(height: 6),
                   _numberField(controller: _weightCtrl, hint: 'Masukkan angka'),
                   const SizedBox(height: 8),

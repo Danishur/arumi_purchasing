@@ -178,9 +178,7 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
                     _field('Reference Genuine Part Number', _material.referenceGenuinePartNumber),
                     _field('Existing Item Description (if replacement)', _material.existingItemDescription),
 
-                    _sectionTitle('Quantity & Price'),
-                    _field('Quantity',
-                        '${_material.quantity}${_material.unit != null ? ' ${_material.unit}' : ''}'),
+                    _sectionTitle('Price'),
                     _field('Price - Quote', _rupiah(_material.priceQuote)),
                     _field('Date Update (Quote)', _formatDate(_material.priceQuoteDate)),
                     _field('Total Discount', _rupiah(_material.totalDiscount)),

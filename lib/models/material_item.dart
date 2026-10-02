@@ -37,8 +37,11 @@ class MaterialItem {
   final String? referenceGenuinePartNumber;
   final String? existingItemDescription;
 
-  final int quantity;
-  final String? unit;
+  // CATATAN REVISI (dari owner): Quantity & Unit DIHAPUS dari Material,
+  // dipindah ke RFQ -- karena quantity semestinya ditentukan per
+  // permintaan (RFQ), bukan melekat ke data master Material. Kalau
+  // quantity ditentukan di Material, repot saat repeat order dengan
+  // quantity yang beda-beda. Lihat RfqMaterialLine di rfq_material.dart.
 
   final double priceQuote;
   final DateTime? priceQuoteDate;
@@ -86,8 +89,6 @@ class MaterialItem {
     this.photoPath,
     this.referenceGenuinePartNumber,
     this.existingItemDescription,
-    this.quantity = 0,
-    this.unit,
     this.priceQuote = 0,
     this.priceQuoteDate,
     this.totalDiscount = 0,
@@ -134,8 +135,6 @@ class MaterialItem {
       'photo_path': photoPath,
       'reference_genuine_part_number': referenceGenuinePartNumber,
       'existing_item_description': existingItemDescription,
-      'quantity': quantity,
-      'unit': unit,
       'price_quote': priceQuote,
       'price_quote_date': priceQuoteDate == null ? null : _dateOnly(priceQuoteDate!),
       'total_discount': totalDiscount,
@@ -181,8 +180,6 @@ class MaterialItem {
       photoPath: map['photo_path'] as String?,
       referenceGenuinePartNumber: map['reference_genuine_part_number'] as String?,
       existingItemDescription: map['existing_item_description'] as String?,
-      quantity: _readInt(map['quantity']),
-      unit: map['unit'] as String?,
       priceQuote: _readDouble(map['price_quote']),
       priceQuoteDate: _readDate(map['price_quote_date']),
       totalDiscount: _readDouble(map['total_discount']),

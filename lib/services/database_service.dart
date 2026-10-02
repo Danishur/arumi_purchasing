@@ -374,13 +374,13 @@ class DatabaseService {
          (vendor_id, scope_of_work, sub_sow, brand_unit_installed_on,
           type_unit_installed_on, item_description, category, item_manufacturer,
           origin_country, item_type, item_part_number, size, photo_path,
-          reference_genuine_part_number, existing_item_description, quantity, unit,
+          reference_genuine_part_number, existing_item_description,
           price_quote, price_quote_date, total_discount, price_discount, total_price,
           vat, dpp, vat_value, lead_time_days, delivery_terms, delivery_address,
           dim_p, dim_l, dim_t, dim_unit, weight, weight_unit, documents,
           is_transaction, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         materialRow['vendor_id'],
         materialRow['scope_of_work'],
@@ -397,8 +397,6 @@ class DatabaseService {
         materialRow['photo_path'],
         materialRow['reference_genuine_part_number'],
         materialRow['existing_item_description'],
-        materialRow['quantity'],
-        materialRow['unit'],
         materialRow['price_quote'],
         materialRow['price_quote_date'],
         materialRow['total_discount'],
@@ -448,7 +446,7 @@ class DatabaseService {
              type_unit_installed_on = ?, item_description = ?, category = ?,
              item_manufacturer = ?, origin_country = ?, item_type = ?, item_part_number = ?,
              size = ?, photo_path = ?, reference_genuine_part_number = ?,
-             existing_item_description = ?, quantity = ?, unit = ?, price_quote = ?,
+             existing_item_description = ?, price_quote = ?,
              price_quote_date = ?, total_discount = ?, price_discount = ?, total_price = ?,
              vat = ?, dpp = ?, vat_value = ?, lead_time_days = ?, delivery_terms = ?,
              delivery_address = ?, dim_p = ?, dim_l = ?, dim_t = ?, dim_unit = ?,
@@ -470,8 +468,6 @@ class DatabaseService {
         materialRow['photo_path'],
         materialRow['reference_genuine_part_number'],
         materialRow['existing_item_description'],
-        materialRow['quantity'],
-        materialRow['unit'],
         materialRow['price_quote'],
         materialRow['price_quote_date'],
         materialRow['total_discount'],
@@ -518,5 +514,123 @@ class DatabaseService {
     final conn = await _conn;
     final placeholders = List.filled(ids.length, '?').join(', ');
     await conn.query('DELETE FROM materials WHERE id IN ($placeholders)', ids);
+  }
+
+  // ==================== RFQ ====================
+
+  /// LEFT JOIN ke `customers` supaya `customer_name` ikut kebawa buat
+  /// ditampilkan di list/detail, tanpa perlu query terpisah lagi.
+  Future<List<Map<String, dynamic>>> getRfqs() async {
+    final conn = await _conn;
+    final results = await conn.query('''
+      SELECT r.*, c.customer_name AS customer_name
+      FROM rfqs r
+      LEFT JOIN customers c ON c.id = r.customer_id
+      ORDER BY r.id DESC
+    ''');
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// JOIN ke `materials` (buat `item_description` & harga) dan ke
+  /// `vendors` (buat nama supplier) sekaligus -- dipakai buat tampilan
+  /// Material List DAN buat Export Excel (kolom Harga Satuan, Toko/
+  /// Supplier, Subtotal).
+  Future<List<Map<String, dynamic>>> getRfqMaterialsByRfqId(int rfqId) async {
+    final conn = await _conn;
+    final results = await conn.query('''
+      SELECT rm.*,
+             m.item_description AS item_description,
+             m.total_price AS material_total_price,
+             v.vendor_name AS vendor_name
+      FROM rfq_materials rm
+      LEFT JOIN materials m ON m.id = rm.material_id
+      LEFT JOIN vendors v ON v.id = m.vendor_id
+      WHERE rm.rfq_id = ?
+      ORDER BY rm.id ASC
+    ''', [rfqId]);
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// Insert RFQ baru + semua baris Material List-nya (dengan Quantity &
+  /// Unit masing-masing) sekaligus. Mengembalikan id RFQ yang baru dibuat.
+  Future<int> insertRfq(
+    Map<String, dynamic> rfqRow,
+    List<Map<String, dynamic>> materialLines,
+  ) async {
+    final conn = await _conn;
+    final result = await conn.query(
+      '''INSERT INTO rfqs
+         (reference, pic, date_request, due_date, customer_id, internal_note, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)''',
+      [
+        rfqRow['reference'],
+        rfqRow['pic'],
+        rfqRow['date_request'],
+        rfqRow['due_date'],
+        rfqRow['customer_id'],
+        rfqRow['internal_note'],
+        rfqRow['status'],
+      ],
+    );
+    final rfqId = result.insertId!;
+
+    for (final line in materialLines) {
+      await conn.query(
+        'INSERT INTO rfq_materials (rfq_id, material_id, quantity, unit) VALUES (?, ?, ?, ?)',
+        [rfqId, line['material_id'], line['quantity'], line['unit']],
+      );
+    }
+
+    return rfqId;
+  }
+
+  /// Update data RFQ + ganti seluruh Material List-nya (hapus yang
+  /// lama, masukkan ulang yang baru) -- pola sama dengan updateMaterial.
+  Future<void> updateRfq(
+    Map<String, dynamic> rfqRow,
+    List<Map<String, dynamic>> materialLines,
+  ) async {
+    final conn = await _conn;
+    final id = rfqRow['id'];
+
+    await conn.query(
+      '''UPDATE rfqs
+         SET reference = ?, pic = ?, date_request = ?, due_date = ?,
+             customer_id = ?, internal_note = ?, status = ?
+         WHERE id = ?''',
+      [
+        rfqRow['reference'],
+        rfqRow['pic'],
+        rfqRow['date_request'],
+        rfqRow['due_date'],
+        rfqRow['customer_id'],
+        rfqRow['internal_note'],
+        rfqRow['status'],
+        id,
+      ],
+    );
+
+    await conn.query('DELETE FROM rfq_materials WHERE rfq_id = ?', [id]);
+    for (final line in materialLines) {
+      await conn.query(
+        'INSERT INTO rfq_materials (rfq_id, material_id, quantity, unit) VALUES (?, ?, ?, ?)',
+        [id, line['material_id'], line['quantity'], line['unit']],
+      );
+    }
+  }
+
+  Future<void> deleteRfq(int id) async {
+    final conn = await _conn;
+    await conn.query('DELETE FROM rfqs WHERE id = ?', [id]);
+  }
+
+  /// Hapus banyak RFQ sekaligus (fitur select multi di layar list).
+  /// `rfq_materials` ikut kehapus otomatis lewat FK `ON DELETE CASCADE`
+  /// (lihat sql/05_alter_materials_and_create_rfq_tables.sql).
+  Future<void> deleteRfqs(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final conn = await _conn;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    await conn.query('DELETE FROM rfqs WHERE id IN ($placeholders)', ids);
   }
 }

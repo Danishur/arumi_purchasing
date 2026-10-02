@@ -26,6 +26,10 @@ dependencies:
   # Material Form). Support Windows desktop.
   file_picker: ^8.1.2
 
+  # Generate file .xlsx buat fitur Export Excel di modul RFQ.
+  # Package pure-Dart, tidak butuh Excel ter-install di komputer.
+  excel: ^4.0.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

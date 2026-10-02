@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import 'customer_list_screen.dart';
 import 'material_list_screen.dart';
+import 'rfq_list_screen.dart';
 import 'vendor_list_screen.dart';
 
 /// Layar Home -- menu navigasi ke tiap modul (Customer, Vendor,
-/// Material, dan RFQ yang menyusul sesuai timeline).
+/// Material, RFQ).
 /// Sebelumnya `home:` di main.dart langsung ke CustomerListScreen
 /// (minggu 1, waktu modul Vendor belum ada) -- sekarang dengan 2 modul
 /// aktif, perlu 1 pintu masuk supaya user bisa pilih mau buka yang mana.
@@ -61,9 +62,11 @@ class HomeScreen extends StatelessWidget {
             context,
             icon: Icons.request_quote_outlined,
             title: 'RFQ',
-            subtitle: 'Menyusul (Bulan 2 pekan ke 4)',
-            enabled: false,
-            onTap: () {},
+            subtitle: 'Permintaan quotation ke vendor berdasarkan Material',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RfqListScreen()),
+            ),
           ),
         ],
       ),
