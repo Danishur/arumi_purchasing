@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'providers/currency_provider.dart';
 import 'providers/customer_provider.dart';
 import 'providers/material_provider.dart';
 import 'providers/rfq_provider.dart';
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VendorProvider()),
         ChangeNotifierProvider(create: (_) => MaterialProvider()),
         ChangeNotifierProvider(create: (_) => RfqProvider()),
+        ChangeNotifierProvider(create: (_) => CurrencyProvider()),
       ],
       child: MaterialApp(
         title: 'Purchasing Intermediary',
@@ -35,8 +37,8 @@ class MyApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        // Sekarang 4 modul aktif (Customer, Vendor, Material & RFQ)
-        // lewat HomeScreen (menu navigasi).
+        // 5 modul aktif (Customer, Vendor, Material, RFQ) + Settings
+        // (Update Valuta) lewat HomeScreen (menu navigasi).
         home: const HomeScreen(),
       ),
     );

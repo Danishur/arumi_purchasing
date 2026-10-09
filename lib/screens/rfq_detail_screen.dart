@@ -209,6 +209,8 @@ class _RfqDetailScreenState extends State<RfqDetailScreen> {
                     const SizedBox(height: 16),
 
                     _field('Internal Note', _rfq.internalNote),
+                    _field('Document Requirement',
+                        _rfq.documentRequirement.isEmpty ? null : _rfq.documentRequirement.join(', ')),
                     _field('Updated data', _formatDateTime(_rfq.updatedAt)),
 
                     const SizedBox(height: 8),

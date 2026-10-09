@@ -49,6 +49,7 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
   DateTime? _dateRequest;
   DateTime? _dueDate;
   int? _customerId;
+  List<String> _documentRequirement = [];
   String? _status;
 
   final List<_RfqMaterialRow> _materialRows = [];
@@ -73,6 +74,7 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
       _dateRequest = r.dateRequest;
       _dueDate = r.dueDate;
       _customerId = r.customerId;
+      _documentRequirement = List.of(r.documentRequirement);
       _status = r.status;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -258,6 +260,17 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
       withSearch: true,
     );
     if (result != null) setState(() => row.unit = result);
+  }
+
+  Future<void> _pickDocumentRequirement() async {
+    final result = await showMultiOptionPickerDialog(
+      context: context,
+      title: 'Document Requirement',
+      options: MaterialOptions.documents,
+      selectedValues: _documentRequirement,
+      withSearch: true,
+    );
+    if (result != null) setState(() => _documentRequirement = result);
   }
 
   Future<void> _pickStatus() async {

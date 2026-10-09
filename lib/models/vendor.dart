@@ -1,13 +1,17 @@
+import 'vendor_bank_account.dart';
 import 'vendor_contact.dart';
 import 'vendor_product.dart';
 
 /// Model Vendor (data master supplier/vendor).
 ///
-/// CATATAN: berbeda dengan modul Customer (yang sempat kena bug nama
-/// kolom tidak cocok karena tabelnya sudah ada duluan sebelum model
-/// dibuat), di sini map key di `toMap()`/`fromMap()` SENGAJA dibuat
-/// SAMA PERSIS dengan nama kolom tabel `vendors` di database supaya
-/// tidak ada celah salah mapping seperti sebelumnya.
+/// CATATAN: map key di `toMap()`/`fromMap()` SENGAJA dibuat SAMA
+/// PERSIS dengan nama kolom tabel `vendors` di database supaya tidak
+/// ada celah salah mapping seperti yang sempat terjadi di Customer.
+///
+/// REVISI: field Bank Information (bankName, bankAccountNumber, dst)
+/// yang sebelumnya 1 set langsung di sini SUDAH DIPINDAH ke tabel
+/// `vendor_bank_accounts` terpisah (lihat VendorBankAccount) supaya 1
+/// vendor bisa punya lebih dari 1 rekening bank.
 class Vendor {
   final int? id;
   final String vendorName;
@@ -21,17 +25,13 @@ class Vendor {
   final String? internalNote;
   final String? vendorAddress;
   final String? picWebsite;
-  final String? bankName;
-  final String? bankAccountNumber;
-  final String? bankAccountHolder;
-  final String? bankCurrency;
-  final String? bankSwiftCode;
   final bool isActive;
   final DateTime? updatedAt;
 
   /// Dimuat terpisah (query lain), bukan bagian dari tabel `vendors`.
   final List<VendorContact> contacts;
   final List<VendorProduct> products;
+  final List<VendorBankAccount> bankAccounts;
 
   Vendor({
     this.id,
@@ -46,15 +46,11 @@ class Vendor {
     this.internalNote,
     this.vendorAddress,
     this.picWebsite,
-    this.bankName,
-    this.bankAccountNumber,
-    this.bankAccountHolder,
-    this.bankCurrency,
-    this.bankSwiftCode,
     this.isActive = true,
     this.updatedAt,
     this.contacts = const [],
     this.products = const [],
+    this.bankAccounts = const [],
   });
 
   /// Vendor ID yang ditampilkan ke user, mis. "V5". Diturunkan dari
@@ -75,11 +71,6 @@ class Vendor {
       'internal_note': internalNote,
       'vendor_address': vendorAddress,
       'pic_website': picWebsite,
-      'bank_name': bankName,
-      'bank_account_number': bankAccountNumber,
-      'bank_account_holder': bankAccountHolder,
-      'bank_currency': bankCurrency,
-      'bank_swift_code': bankSwiftCode,
       'status': isActive ? 1 : 0,
     };
   }
@@ -88,6 +79,7 @@ class Vendor {
     Map<String, dynamic> map, {
     List<VendorContact> contacts = const [],
     List<VendorProduct> products = const [],
+    List<VendorBankAccount> bankAccounts = const [],
   }) {
     return Vendor(
       id: map['id'] as int?,
@@ -102,17 +94,13 @@ class Vendor {
       internalNote: map['internal_note'] as String?,
       vendorAddress: map['vendor_address'] as String?,
       picWebsite: map['pic_website'] as String?,
-      bankName: map['bank_name'] as String?,
-      bankAccountNumber: map['bank_account_number'] as String?,
-      bankAccountHolder: map['bank_account_holder'] as String?,
-      bankCurrency: map['bank_currency'] as String?,
-      bankSwiftCode: map['bank_swift_code'] as String?,
       // Dukung dua-duanya (defensif, sama seperti pola Customer): driver
       // MySQL kadang balikin TINYINT(1) sebagai int, kadang sebagai bool.
       isActive: _readBool(map['status']),
       updatedAt: map['updated_at'] is DateTime ? map['updated_at'] as DateTime : null,
       contacts: contacts,
       products: products,
+      bankAccounts: bankAccounts,
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/vendor.dart';
+import '../models/vendor_bank_account.dart';
 import '../models/vendor_contact.dart';
 import '../models/vendor_product.dart';
 import '../providers/vendor_provider.dart';
@@ -36,6 +37,37 @@ class _VendorContactRow {
   }
 }
 
+/// Satu baris Bank Information di form Vendor. REVISI: sebelumnya
+/// cuma 1 set field Bank Information langsung di state -- sekarang
+/// dibuat repeatable (pola sama seperti _VendorContactRow) supaya 1
+/// vendor bisa punya lebih dari 1 rekening bank ("+ Add Bank
+/// Information").
+class _BankRow {
+  final TextEditingController bankNameCtrl;
+  final TextEditingController accountNumberCtrl;
+  final TextEditingController accountHolderCtrl;
+  final TextEditingController swiftCodeCtrl;
+  String? currency;
+
+  _BankRow({
+    String bankName = '',
+    String accountNumber = '',
+    String accountHolder = '',
+    String swiftCode = '',
+    this.currency,
+  })  : bankNameCtrl = TextEditingController(text: bankName),
+        accountNumberCtrl = TextEditingController(text: accountNumber),
+        accountHolderCtrl = TextEditingController(text: accountHolder),
+        swiftCodeCtrl = TextEditingController(text: swiftCode);
+
+  void dispose() {
+    bankNameCtrl.dispose();
+    accountNumberCtrl.dispose();
+    accountHolderCtrl.dispose();
+    swiftCodeCtrl.dispose();
+  }
+}
+
 class VendorFormScreen extends StatefulWidget {
   final Vendor? vendor; // null = mode tambah, terisi = mode edit
 
@@ -51,10 +83,6 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
   final _internalNoteCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _websiteCtrl = TextEditingController();
-  final _bankNameCtrl = TextEditingController();
-  final _bankAccountNumberCtrl = TextEditingController();
-  final _bankAccountHolderCtrl = TextEditingController();
-  final _bankSwiftCodeCtrl = TextEditingController();
 
   String? _legalStanding;
   bool _isVerified = false;
@@ -62,11 +90,11 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
   List<String> _scopeOfWork = [];
   List<String> _subSow = [];
   String? _supplyChainClassification;
-  String? _bankCurrency;
   bool _isActive = true;
 
   final List<TextEditingController> _productCtrls = [];
   final List<_VendorContactRow> _contactRows = [];
+  final List<_BankRow> _bankRows = [];
 
   bool _loadingRelated = true;
   bool _isSaving = false;
@@ -83,17 +111,12 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
       _internalNoteCtrl.text = v.internalNote ?? '';
       _addressCtrl.text = v.vendorAddress ?? '';
       _websiteCtrl.text = v.picWebsite ?? '';
-      _bankNameCtrl.text = v.bankName ?? '';
-      _bankAccountNumberCtrl.text = v.bankAccountNumber ?? '';
-      _bankAccountHolderCtrl.text = v.bankAccountHolder ?? '';
-      _bankSwiftCodeCtrl.text = v.bankSwiftCode ?? '';
       _legalStanding = v.legalStanding;
       _isVerified = v.isVerified;
       _termsOfPayment = v.termsOfPayment;
       _scopeOfWork = List.of(v.scopeOfWork);
       _subSow = List.of(v.subSow);
       _supplyChainClassification = v.supplyChainClassification;
-      _bankCurrency = v.bankCurrency;
       _isActive = v.isActive;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadRelated());
@@ -107,6 +130,7 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
       setState(() {
         _contactRows.add(_VendorContactRow());
         _productCtrls.add(TextEditingController());
+        _bankRows.add(_BankRow());
         _loadingRelated = false;
       });
       return;
@@ -116,6 +140,7 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
       final provider = context.read<VendorProvider>();
       final contacts = await provider.getContactsForVendor(v.id!);
       final products = await provider.getProductsForVendor(v.id!);
+      final bankAccounts = await provider.getBankAccountsForVendor(v.id!);
       if (!mounted) return;
       setState(() {
         _contactRows.addAll(
@@ -133,6 +158,17 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
               ? [TextEditingController()]
               : products.map((p) => TextEditingController(text: p.productName)),
         );
+        _bankRows.addAll(
+          bankAccounts.isEmpty
+              ? [_BankRow()]
+              : bankAccounts.map((b) => _BankRow(
+                    bankName: b.bankName,
+                    accountNumber: b.accountNumber,
+                    accountHolder: b.accountHolder,
+                    swiftCode: b.swiftCode,
+                    currency: b.currency,
+                  )),
+        );
         _loadingRelated = false;
       });
     } catch (e) {
@@ -140,9 +176,10 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
       setState(() {
         _contactRows.add(_VendorContactRow());
         _productCtrls.add(TextEditingController());
+        _bankRows.add(_BankRow());
         _loadingRelated = false;
       });
-      _showSnack('Gagal memuat data PIC/Produk: $e', isError: true);
+      _showSnack('Gagal memuat data PIC/Produk/Bank: $e', isError: true);
     }
   }
 
@@ -153,15 +190,14 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
     _internalNoteCtrl.dispose();
     _addressCtrl.dispose();
     _websiteCtrl.dispose();
-    _bankNameCtrl.dispose();
-    _bankAccountNumberCtrl.dispose();
-    _bankAccountHolderCtrl.dispose();
-    _bankSwiftCodeCtrl.dispose();
     for (final row in _contactRows) {
       row.dispose();
     }
     for (final ctrl in _productCtrls) {
       ctrl.dispose();
+    }
+    for (final row in _bankRows) {
+      row.dispose();
     }
     super.dispose();
   }
@@ -195,6 +231,17 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
     setState(() {
       _productCtrls[index].dispose();
       _productCtrls.removeAt(index);
+    });
+  }
+
+  void _addBankRow() {
+    setState(() => _bankRows.add(_BankRow()));
+  }
+
+  void _removeBankRow(int index) {
+    setState(() {
+      _bankRows[index].dispose();
+      _bankRows.removeAt(index);
     });
   }
 
@@ -253,15 +300,15 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
     if (result != null) setState(() => _supplyChainClassification = result);
   }
 
-  Future<void> _pickCurrency() async {
+  Future<void> _pickBankCurrency(int index) async {
     final result = await showOptionPickerDialog(
       context: context,
       title: 'Bank Account-Currency',
       options: VendorOptions.currency,
-      selectedValue: _bankCurrency,
+      selectedValue: _bankRows[index].currency,
       withSearch: true,
     );
-    if (result != null) setState(() => _bankCurrency = result);
+    if (result != null) setState(() => _bankRows[index].currency = result);
   }
 
   Future<void> _save() async {
@@ -307,6 +354,24 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
         .map((t) => VendorProduct(productName: t))
         .toList();
 
+    // REVISI: Bank Information sekarang bisa lebih dari 1 -- baris yang
+    // semua field-nya kosong dilewati, sama seperti pola PIC/Produk.
+    final bankAccounts = _bankRows
+        .where((b) =>
+            b.bankNameCtrl.text.trim().isNotEmpty ||
+            b.accountNumberCtrl.text.trim().isNotEmpty ||
+            b.accountHolderCtrl.text.trim().isNotEmpty ||
+            b.swiftCodeCtrl.text.trim().isNotEmpty ||
+            b.currency != null)
+        .map((b) => VendorBankAccount(
+              bankName: b.bankNameCtrl.text.trim(),
+              accountNumber: b.accountNumberCtrl.text.trim(),
+              accountHolder: b.accountHolderCtrl.text.trim(),
+              currency: b.currency,
+              swiftCode: b.swiftCodeCtrl.text.trim(),
+            ))
+        .toList();
+
     final vendor = Vendor(
       id: widget.vendor?.id,
       vendorName: name,
@@ -320,13 +385,6 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
       internalNote: _internalNoteCtrl.text.trim().isEmpty ? null : _internalNoteCtrl.text.trim(),
       vendorAddress: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
       picWebsite: _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
-      bankName: _bankNameCtrl.text.trim().isEmpty ? null : _bankNameCtrl.text.trim(),
-      bankAccountNumber:
-          _bankAccountNumberCtrl.text.trim().isEmpty ? null : _bankAccountNumberCtrl.text.trim(),
-      bankAccountHolder:
-          _bankAccountHolderCtrl.text.trim().isEmpty ? null : _bankAccountHolderCtrl.text.trim(),
-      bankCurrency: _bankCurrency,
-      bankSwiftCode: _bankSwiftCodeCtrl.text.trim().isEmpty ? null : _bankSwiftCodeCtrl.text.trim(),
       isActive: _isActive,
     );
 
@@ -334,9 +392,9 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
     try {
       final provider = context.read<VendorProvider>();
       if (_isEditMode) {
-        await provider.updateVendor(vendor, contacts, products);
+        await provider.updateVendor(vendor, contacts, products, bankAccounts);
       } else {
-        await provider.addVendor(vendor, contacts, products);
+        await provider.addVendor(vendor, contacts, products, bankAccounts);
       }
 
       if (!mounted) return;
@@ -579,49 +637,79 @@ class _VendorFormScreenState extends State<VendorFormScreen> {
                   _textField(controller: _websiteCtrl, hint: 'www.namavendor.com'),
                   const SizedBox(height: 20),
 
-                  // 15. Bank Information
+                  // 15. Bank Information -- REVISI: sekarang bisa lebih dari 1
+                  // ("+ Add Bank Information"), pola sama seperti PIC/Produk.
                   _label('Bank Information'),
                   const SizedBox(height: 8),
-                  Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _textField(controller: _bankNameCtrl, hint: 'Bank Name', dense: true),
-                          const SizedBox(height: 8),
-                          _textField(
-                            controller: _bankAccountNumberCtrl,
-                            hint: 'Account Number',
-                            dense: true,
-                            keyboardType: TextInputType.number,
+                  ..._bankRows.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final bank = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Bank ${index + 1}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold, fontSize: 12)),
+                                  if (_bankRows.length > 1)
+                                    InkWell(
+                                      onTap: () => _removeBankRow(index),
+                                      child: const Icon(Icons.close,
+                                          size: 18, color: AppColors.danger),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              _textField(
+                                  controller: bank.bankNameCtrl, hint: 'Bank Name', dense: true),
+                              const SizedBox(height: 8),
+                              _textField(
+                                controller: bank.accountNumberCtrl,
+                                hint: 'Account Number',
+                                dense: true,
+                                keyboardType: TextInputType.number,
+                              ),
+                              const SizedBox(height: 8),
+                              _textField(
+                                controller: bank.accountHolderCtrl,
+                                hint: 'Account Holder / Name',
+                                dense: true,
+                              ),
+                              const SizedBox(height: 8),
+                              _pickerBox(
+                                value: bank.currency,
+                                hint: '-- Pilih Currency --',
+                                onTap: () => _pickBankCurrency(index),
+                              ),
+                              const SizedBox(height: 8),
+                              _textField(
+                                controller: bank.swiftCodeCtrl,
+                                hint: 'SWIFT CODE (if any)',
+                                dense: true,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          _textField(
-                            controller: _bankAccountHolderCtrl,
-                            hint: 'Account Holder / Name',
-                            dense: true,
-                          ),
-                          const SizedBox(height: 8),
-                          _pickerBox(
-                            value: _bankCurrency,
-                            hint: '-- Pilih Currency --',
-                            onTap: _pickCurrency,
-                          ),
-                          const SizedBox(height: 8),
-                          _textField(
-                            controller: _bankSwiftCodeCtrl,
-                            hint: 'SWIFT CODE (if any)',
-                            dense: true,
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    );
+                  }),
+                  OutlinedButton.icon(
+                    onPressed: _addBankRow,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Tambah Bank Information'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary),
                   ),
                   const SizedBox(height: 20),
 

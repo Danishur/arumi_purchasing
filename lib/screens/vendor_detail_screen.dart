@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/vendor.dart';
+import '../models/vendor_bank_account.dart';
 import '../models/vendor_contact.dart';
 import '../models/vendor_product.dart';
 import '../providers/vendor_provider.dart';
@@ -24,6 +25,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
   late Vendor _vendor;
   List<VendorContact> _contacts = [];
   List<VendorProduct> _products = [];
+  List<VendorBankAccount> _bankAccounts = [];
   bool _loading = true;
   bool _hasError = false;
   bool _changed = false;
@@ -44,10 +46,12 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       final provider = context.read<VendorProvider>();
       final contacts = await provider.getContactsForVendor(_vendor.id!);
       final products = await provider.getProductsForVendor(_vendor.id!);
+      final bankAccounts = await provider.getBankAccountsForVendor(_vendor.id!);
       if (!mounted) return;
       setState(() {
         _contacts = contacts;
         _products = products;
+        _bankAccounts = bankAccounts;
         _loading = false;
       });
     } catch (e) {
@@ -185,7 +189,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                     const Text('Bank Information',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     const SizedBox(height: 8),
-                    _bankInfoCard(),
+                    if (_bankAccounts.isEmpty)
+                      const Text('Belum ada Bank Information.',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 13))
+                    else
+                      ..._bankAccounts.map(_bankInfoCard),
                     const SizedBox(height: 16),
 
                     _field('Updated data', _formatUpdatedAt(_vendor.updatedAt)),
@@ -247,15 +255,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     );
   }
 
-  Widget _bankInfoCard() {
-    final v = _vendor;
-    final hasBankInfo = (v.bankName ?? '').isNotEmpty ||
-        (v.bankAccountNumber ?? '').isNotEmpty ||
-        (v.bankAccountHolder ?? '').isNotEmpty ||
-        (v.bankCurrency ?? '').isNotEmpty ||
-        (v.bankSwiftCode ?? '').isNotEmpty;
-
+  /// REVISI: 1 vendor sekarang bisa punya lebih dari 1 Bank Information
+  /// -- tiap rekening ditampilkan sebagai card terpisah.
+  Widget _bankInfoCard(VendorBankAccount b) {
     return Card(
+      margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
@@ -263,18 +267,16 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: hasBankInfo
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _bankLine('Bank Name', v.bankName),
-                  _bankLine('Account Number', v.bankAccountNumber),
-                  _bankLine('Account Holder / Name', v.bankAccountHolder),
-                  _bankLine('Currency', v.bankCurrency),
-                  _bankLine('SWIFT CODE', v.bankSwiftCode),
-                ],
-              )
-            : const Text('-', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _bankLine('Bank Name', b.bankName),
+            _bankLine('Account Number', b.accountNumber),
+            _bankLine('Account Holder / Name', b.accountHolder),
+            _bankLine('Currency', b.currency),
+            _bankLine('SWIFT CODE', b.swiftCode),
+          ],
+        ),
       ),
     );
   }

@@ -207,21 +207,34 @@ class DatabaseService {
     return results.map((row) => _convertRow(row.fields)).toList();
   }
 
-  /// Insert vendor baru + semua PIC dan Produk/Brand-nya sekaligus.
-  /// Mengembalikan id vendor yang baru dibuat.
+  /// REVISI: Bank Information sekarang bisa lebih dari 1 per vendor,
+  /// disimpan di tabel `vendor_bank_accounts` terpisah (pola sama
+  /// dengan PIC/Produk).
+  Future<List<Map<String, dynamic>>> getBankAccountsByVendorId(int vendorId) async {
+    final conn = await _conn;
+    final results = await conn.query(
+      'SELECT * FROM vendor_bank_accounts WHERE vendor_id = ? ORDER BY id ASC',
+      [vendorId],
+    );
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// Insert vendor baru + semua PIC, Produk/Brand, dan Bank Information
+  /// (bisa lebih dari 1) sekaligus. Mengembalikan id vendor yang baru
+  /// dibuat.
   Future<int> insertVendor(
     Map<String, dynamic> vendorRow,
     List<Map<String, dynamic>> contacts,
     List<Map<String, dynamic>> products,
+    List<Map<String, dynamic>> bankAccounts,
   ) async {
     final conn = await _conn;
     final result = await conn.query(
       '''INSERT INTO vendors
          (vendor_name, legal_standing, npwp, is_verified, terms_of_payment,
           scope_of_work, sub_sow, supply_chain_classification, internal_note,
-          vendor_address, pic_website, bank_name, bank_account_number,
-          bank_account_holder, bank_currency, bank_swift_code, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          vendor_address, pic_website, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         vendorRow['vendor_name'],
         vendorRow['legal_standing'],
@@ -234,11 +247,6 @@ class DatabaseService {
         vendorRow['internal_note'],
         vendorRow['vendor_address'],
         vendorRow['pic_website'],
-        vendorRow['bank_name'],
-        vendorRow['bank_account_number'],
-        vendorRow['bank_account_holder'],
-        vendorRow['bank_currency'],
-        vendorRow['bank_swift_code'],
         vendorRow['status'],
       ],
     );
@@ -259,16 +267,33 @@ class DatabaseService {
       );
     }
 
+    for (final b in bankAccounts) {
+      await conn.query(
+        '''INSERT INTO vendor_bank_accounts
+           (vendor_id, bank_name, account_number, account_holder, currency, swift_code)
+           VALUES (?, ?, ?, ?, ?, ?)''',
+        [
+          vendorId,
+          b['bank_name'],
+          b['account_number'],
+          b['account_holder'],
+          b['currency'],
+          b['swift_code'],
+        ],
+      );
+    }
+
     return vendorId;
   }
 
-  /// Update data vendor + ganti seluruh daftar PIC & Produk/Brand-nya
-  /// (hapus yang lama, masukkan ulang yang baru) -- pola sama dengan
-  /// updateCustomer.
+  /// Update data vendor + ganti seluruh daftar PIC, Produk/Brand, dan
+  /// Bank Information-nya (hapus yang lama, masukkan ulang yang baru)
+  /// -- pola sama dengan updateCustomer.
   Future<void> updateVendor(
     Map<String, dynamic> vendorRow,
     List<Map<String, dynamic>> contacts,
     List<Map<String, dynamic>> products,
+    List<Map<String, dynamic>> bankAccounts,
   ) async {
     final conn = await _conn;
     final id = vendorRow['id'];
@@ -278,9 +303,7 @@ class DatabaseService {
          SET vendor_name = ?, legal_standing = ?, npwp = ?, is_verified = ?,
              terms_of_payment = ?, scope_of_work = ?, sub_sow = ?,
              supply_chain_classification = ?, internal_note = ?,
-             vendor_address = ?, pic_website = ?, bank_name = ?,
-             bank_account_number = ?, bank_account_holder = ?,
-             bank_currency = ?, bank_swift_code = ?, status = ?
+             vendor_address = ?, pic_website = ?, status = ?
          WHERE id = ?''',
       [
         vendorRow['vendor_name'],
@@ -294,11 +317,6 @@ class DatabaseService {
         vendorRow['internal_note'],
         vendorRow['vendor_address'],
         vendorRow['pic_website'],
-        vendorRow['bank_name'],
-        vendorRow['bank_account_number'],
-        vendorRow['bank_account_holder'],
-        vendorRow['bank_currency'],
-        vendorRow['bank_swift_code'],
         vendorRow['status'],
         id,
       ],
@@ -318,6 +336,23 @@ class DatabaseService {
       await conn.query(
         'INSERT INTO vendor_products (vendor_id, product_name) VALUES (?, ?)',
         [id, p['product_name']],
+      );
+    }
+
+    await conn.query('DELETE FROM vendor_bank_accounts WHERE vendor_id = ?', [id]);
+    for (final b in bankAccounts) {
+      await conn.query(
+        '''INSERT INTO vendor_bank_accounts
+           (vendor_id, bank_name, account_number, account_holder, currency, swift_code)
+           VALUES (?, ?, ?, ?, ?, ?)''',
+        [
+          id,
+          b['bank_name'],
+          b['account_number'],
+          b['account_holder'],
+          b['currency'],
+          b['swift_code'],
+        ],
       );
     }
   }
@@ -375,12 +410,13 @@ class DatabaseService {
           type_unit_installed_on, item_description, category, item_manufacturer,
           origin_country, item_type, item_part_number, size, photo_path,
           reference_genuine_part_number, existing_item_description,
-          price_quote, price_quote_date, total_discount, price_discount, total_price,
+          price_quote, price_quote_currency, price_quote_foreign_amount,
+          price_quote_date, total_discount, price_discount, total_price,
           vat, dpp, vat_value, lead_time_days, delivery_terms, delivery_address,
           dim_p, dim_l, dim_t, dim_unit, weight, weight_unit, documents,
           is_transaction, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         materialRow['vendor_id'],
         materialRow['scope_of_work'],
@@ -398,6 +434,8 @@ class DatabaseService {
         materialRow['reference_genuine_part_number'],
         materialRow['existing_item_description'],
         materialRow['price_quote'],
+        materialRow['price_quote_currency'],
+        materialRow['price_quote_foreign_amount'],
         materialRow['price_quote_date'],
         materialRow['total_discount'],
         materialRow['price_discount'],
@@ -446,7 +484,8 @@ class DatabaseService {
              type_unit_installed_on = ?, item_description = ?, category = ?,
              item_manufacturer = ?, origin_country = ?, item_type = ?, item_part_number = ?,
              size = ?, photo_path = ?, reference_genuine_part_number = ?,
-             existing_item_description = ?, price_quote = ?,
+             existing_item_description = ?, price_quote = ?, price_quote_currency = ?,
+             price_quote_foreign_amount = ?,
              price_quote_date = ?, total_discount = ?, price_discount = ?, total_price = ?,
              vat = ?, dpp = ?, vat_value = ?, lead_time_days = ?, delivery_terms = ?,
              delivery_address = ?, dim_p = ?, dim_l = ?, dim_t = ?, dim_unit = ?,
@@ -469,6 +508,8 @@ class DatabaseService {
         materialRow['reference_genuine_part_number'],
         materialRow['existing_item_description'],
         materialRow['price_quote'],
+        materialRow['price_quote_currency'],
+        materialRow['price_quote_foreign_amount'],
         materialRow['price_quote_date'],
         materialRow['total_discount'],
         materialRow['price_discount'],
@@ -560,8 +601,9 @@ class DatabaseService {
     final conn = await _conn;
     final result = await conn.query(
       '''INSERT INTO rfqs
-         (reference, pic, date_request, due_date, customer_id, internal_note, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)''',
+         (reference, pic, date_request, due_date, customer_id, internal_note,
+          document_requirement, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         rfqRow['reference'],
         rfqRow['pic'],
@@ -569,6 +611,7 @@ class DatabaseService {
         rfqRow['due_date'],
         rfqRow['customer_id'],
         rfqRow['internal_note'],
+        rfqRow['document_requirement'],
         rfqRow['status'],
       ],
     );
@@ -596,7 +639,7 @@ class DatabaseService {
     await conn.query(
       '''UPDATE rfqs
          SET reference = ?, pic = ?, date_request = ?, due_date = ?,
-             customer_id = ?, internal_note = ?, status = ?
+             customer_id = ?, internal_note = ?, document_requirement = ?, status = ?
          WHERE id = ?''',
       [
         rfqRow['reference'],
@@ -605,6 +648,7 @@ class DatabaseService {
         rfqRow['due_date'],
         rfqRow['customer_id'],
         rfqRow['internal_note'],
+        rfqRow['document_requirement'],
         rfqRow['status'],
         id,
       ],
@@ -632,5 +676,32 @@ class DatabaseService {
     final conn = await _conn;
     final placeholders = List.filled(ids.length, '?').join(', ');
     await conn.query('DELETE FROM rfqs WHERE id IN ($placeholders)', ids);
+  }
+
+  // ==================== CURRENCY (Settings > Update Valuta) ====================
+
+  Future<List<Map<String, dynamic>>> getCurrencyRates() async {
+    final conn = await _conn;
+    final results = await conn.query('SELECT * FROM currency_rates ORDER BY currency_code ASC');
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<int> insertCurrencyRate(String currencyCode, double rateToIdr) async {
+    final conn = await _conn;
+    final result = await conn.query(
+      'INSERT INTO currency_rates (currency_code, rate_to_idr) VALUES (?, ?)',
+      [currencyCode, rateToIdr],
+    );
+    return result.insertId!;
+  }
+
+  Future<void> updateCurrencyRate(int id, double rateToIdr) async {
+    final conn = await _conn;
+    await conn.query('UPDATE currency_rates SET rate_to_idr = ? WHERE id = ?', [rateToIdr, id]);
+  }
+
+  Future<void> deleteCurrencyRate(int id) async {
+    final conn = await _conn;
+    await conn.query('DELETE FROM currency_rates WHERE id = ?', [id]);
   }
 }

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/material_discount.dart';
 import '../models/material_item.dart';
 import '../models/vendor.dart';
+import '../providers/currency_provider.dart';
 import '../providers/material_provider.dart';
 import '../providers/vendor_provider.dart';
 import '../utils/app_theme.dart';
@@ -58,6 +59,10 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
 
 
   final _priceQuoteCtrl = TextEditingController(text: '0');
+  // REVISI: Price - Quote sekarang bisa diisi manual dalam mata uang
+  // asing (dropdown-nya ambil dari Settings > Update Valuta), lalu
+  // dikonversi otomatis ke IDR mengikuti nilai tukar yang terdaftar.
+  String _priceQuoteCurrency = 'IDR';
   DateTime? _priceQuoteDate;
   final List<_DiscountRow> _discountRows = [];
   bool _vat = false;
@@ -104,7 +109,12 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
       _photoPath = m.photoPath;
       _refGenuinePartCtrl.text = m.referenceGenuinePartNumber ?? '';
       _existingItemDescCtrl.text = m.existingItemDescription ?? '';
-      _priceQuoteCtrl.text = _trimZero(m.priceQuote);
+      // CATATAN: yang ditampilkan balik di field isian adalah nilai asli
+      // yang diketik user (priceQuoteForeignAmount, dalam
+      // priceQuoteCurrency) -- bukan m.priceQuote yang sudah dalam IDR,
+      // supaya tidak dobel konversi tiap kali material dibuka lagi.
+      _priceQuoteCtrl.text = _trimZero(m.priceQuoteForeignAmount);
+      _priceQuoteCurrency = m.priceQuoteCurrency;
       _priceQuoteDate = m.priceQuoteDate;
       _vat = m.vat;
       _leadTimeCtrl.text = '${m.leadTimeDays}';
@@ -124,7 +134,22 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadVendors();
       _loadDiscounts();
+      _loadCurrencyRates();
     });
+  }
+
+  Future<void> _loadCurrencyRates() async {
+    try {
+      final provider = context.read<CurrencyProvider>();
+      if (provider.rates.isEmpty) {
+        await provider.loadRates();
+      }
+      if (!mounted) return;
+      setState(() {}); // trigger rebuild supaya dropdown currency ikut terisi
+    } catch (_) {
+      // Daftar currency opsional buat form ini -- kalau gagal dimuat,
+      // dropdown cukup tampil "IDR" saja, tidak perlu blocking error.
+    }
   }
 
   String _trimZero(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
@@ -208,25 +233,35 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
   }
 
   // ---------------- Kalkulasi harga (live, ikut berubah tiap input) ----------------
-  // CATATAN ASUMSI: DPP & VAT Value dihitung otomatis pakai PPN 11%
-  // standar Indonesia (DPP = Total Price, VAT Value = DPP x 11% kalau
-  // VAT = Yes). Kalau rumus/persen yang dipakai di perusahaan beda,
-  // tinggal kasih tau, saya sesuaikan -- cukup ubah di 1 tempat ini.
+  // RUMUS DPP & VAT (revisi): pakai formula PPN 12% dengan "nilai lain"
+  // sesuai aturan pajak terbaru -- DPP = Total Price x 11/12, VAT Value
+  // = DPP x 12%. Contoh dari revisi: harga 155.000 -> DPP 142.083,33 ->
+  // VAT 17.050.
   double get _priceQuoteValue =>
       double.tryParse(_priceQuoteCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+
+  /// Hasil konversi otomatis "Price - Quote" (yang diketik manual dalam
+  /// _priceQuoteCurrency) ke IDR, pakai nilai tukar dari Settings >
+  /// Update Valuta. Kalau currency-nya IDR, atau rate belum terdaftar,
+  /// nilainya sama persis dengan yang diketik (rate dianggap 1).
+  double get _priceQuoteIdr {
+    if (_priceQuoteCurrency == 'IDR') return _priceQuoteValue;
+    final rate = context.read<CurrencyProvider>().rateFor(_priceQuoteCurrency);
+    return _priceQuoteValue * rate;
+  }
 
   double get _totalDiscount => _discountRows.fold(0.0, (sum, r) => sum + r.amountValue);
 
   double get _priceDiscount {
-    final v = _priceQuoteValue - _totalDiscount;
+    final v = _priceQuoteIdr - _totalDiscount;
     return v < 0 ? 0 : v;
   }
 
-  double get _totalPrice => _discountRows.isEmpty ? _priceQuoteValue : _priceDiscount;
+  double get _totalPrice => _discountRows.isEmpty ? _priceQuoteIdr : _priceDiscount;
 
-  double get _dpp => _totalPrice;
+  double get _dpp => _totalPrice * 11 / 12;
 
-  double get _vatValue => _vat ? _dpp * 0.11 : 0;
+  double get _vatValue => _vat ? _dpp * 0.12 : 0;
 
   void _addDiscountRow() {
     setState(() {
@@ -260,6 +295,30 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
       lastDate: DateTime(2100),
     );
     if (picked != null) setState(() => _priceQuoteDate = picked);
+  }
+
+  /// Daftar currency di dropdown "Price - Quote" SENGAJA ambil dari
+  /// yang sudah terdaftar di Settings > Update Valuta (bukan semua
+  /// pilihan statis VendorOptions.currency) -- karena konversi ke IDR
+  /// butuh rate yang memang sudah diisi di situ. "IDR" selalu ada
+  /// duluan di urutan pertama (tidak butuh rate, 1:1).
+  /// Dipanggil dari event handler (tap), jadi pakai `read` -- bukan
+  /// `watch` -- supaya aman dipanggil di luar build().
+  List<String> get _priceQuoteCurrencyOptions {
+    final rates = context.read<CurrencyProvider>().rates;
+    return ['IDR', ...rates.map((r) => r.currencyCode)];
+  }
+
+  Future<void> _pickPriceQuoteCurrency() async {
+    final options = _priceQuoteCurrencyOptions;
+    final result = await showOptionPickerDialog(
+      context: context,
+      title: 'Currency',
+      options: options,
+      selectedValue: _priceQuoteCurrency,
+      withSearch: options.length > 6,
+    );
+    if (result != null) setState(() => _priceQuoteCurrency = result);
   }
 
   Future<void> _pickScopeOfWork() async {
@@ -373,7 +432,16 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
           _refGenuinePartCtrl.text.trim().isEmpty ? null : _refGenuinePartCtrl.text.trim(),
       existingItemDescription:
           _existingItemDescCtrl.text.trim().isEmpty ? null : _existingItemDescCtrl.text.trim(),
-      priceQuote: _priceQuoteValue,
+      // BUG FIX: priceQuote itu field "selalu dalam IDR (hasil konversi
+      // final)" (lihat komentar di model) -- sebelumnya di sini malah
+      // disimpan _priceQuoteValue (angka mentah mata uang asing yang
+      // diketik user, misal "100" untuk USD), bukan _priceQuoteIdr
+      // (hasil konversi, misal "1.800.000"). Akibatnya field "Price -
+      // Quote" di Material Detail salah tampil "Rp 100" alih-alih
+      // "Rp 1.800.000".
+      priceQuote: _priceQuoteIdr,
+      priceQuoteCurrency: _priceQuoteCurrency,
+      priceQuoteForeignAmount: _priceQuoteValue,
       priceQuoteDate: _priceQuoteDate,
       totalDiscount: _totalDiscount,
       priceDiscount: _priceDiscount,
@@ -552,9 +620,26 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
                   // per baris Material List di form RFQ), sesuai revisi owner.
                   _sectionTitle('Price'),
 
-                  // 19. Price - Quote
+                  // 19. Price - Quote (bisa diisi manual dalam mata uang
+                  // asing, dikonversi otomatis ke IDR mengikuti Settings >
+                  // Update Valuta).
                   _label('Price - Quote'),
-                  _rupiahField(_priceQuoteCtrl),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _currencyDropdownBox(),
+                      const SizedBox(width: 8),
+                      Expanded(child: _currencyAmountField(_priceQuoteCtrl)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _label('Price - Quote IDR'),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Otomatis mengikuti nilai tukar di Settings > Update Valuta.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  ),
+                  _readOnlyBox('Rp ${_rupiahFmt.format(_priceQuoteIdr)}'),
                   const SizedBox(height: 12),
                   _label('Date Update'),
                   _datePickerBox(_priceQuoteDate, _pickQuoteDate),
@@ -873,6 +958,67 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
           hintText: '0',
           isDense: dense,
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: dense ? 10 : 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  /// Box kecil di kiri field "Price - Quote" buat pilih mata uang,
+  /// mis. "USD ▼" -- sesuai referensi desain yang dikirim.
+  Widget _currencyDropdownBox() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: InkWell(
+        onTap: _pickPriceQuoteCurrency,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_priceQuoteCurrency,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 2),
+              Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey.shade600),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Sama seperti [_rupiahField], tapi prefix-nya ikut kode currency
+  /// yang sedang dipilih (bukan selalu "Rp") -- dipakai khusus buat
+  /// field isian manual "Price - Quote".
+  Widget _currencyAmountField(TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        style: const TextStyle(fontSize: 14),
+        decoration: InputDecoration(
+          hintText: '0',
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(color: Colors.grey.shade300),

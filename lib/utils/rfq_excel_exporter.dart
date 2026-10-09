@@ -78,10 +78,13 @@ class RfqExcelExporter {
     setCell(5, row, 'Total', style: bold);
     setCell(6, row, grandTotal, style: bold);
 
-    // --- Internal Note (kalau ada) ---
+    // --- Internal Note & Document Requirement (kalau ada) ---
     row += 2;
     setCell(0, row, 'Internal Note', style: bold);
     setCell(1, row, rfq.internalNote ?? '-');
+    row++;
+    setCell(0, row, 'Document Requirement', style: bold);
+    setCell(1, row, rfq.documentRequirement.isEmpty ? '-' : rfq.documentRequirement.join(', '));
 
     // Lebar kolom supaya rapi & tidak terpotong.
     sheet.setColumnWidth(0, 14);

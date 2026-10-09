@@ -3,10 +3,11 @@ import '../utils/app_theme.dart';
 import 'customer_list_screen.dart';
 import 'material_list_screen.dart';
 import 'rfq_list_screen.dart';
+import 'settings_screen.dart';
 import 'vendor_list_screen.dart';
 
 /// Layar Home -- menu navigasi ke tiap modul (Customer, Vendor,
-/// Material, RFQ).
+/// Material, RFQ, Settings).
 /// Sebelumnya `home:` di main.dart langsung ke CustomerListScreen
 /// (minggu 1, waktu modul Vendor belum ada) -- sekarang dengan 2 modul
 /// aktif, perlu 1 pintu masuk supaya user bisa pilih mau buka yang mana.
@@ -66,6 +67,17 @@ class HomeScreen extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const RfqListScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _menuCard(
+            context,
+            icon: Icons.settings_outlined,
+            title: 'Settings',
+            subtitle: 'Edit Dropdown & Update Valuta',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
           ),
         ],

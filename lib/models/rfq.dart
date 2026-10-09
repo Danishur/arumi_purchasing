@@ -15,6 +15,11 @@ class Rfq {
   // query), TIDAK ikut dikirim balik ke database lewat toMap().
   final String? customerName;
   final String? internalNote;
+  // BARU: Document Requirement -- multi-select, isi dropdown-nya
+  // SENGAJA sama dengan MaterialOptions.documents (field "Documents"
+  // di Material Form), disimpan dipisah koma sama seperti
+  // MaterialItem.documents.
+  final List<String> documentRequirement;
   final String? status; // Clarification-Customer / Clarification-Vendor / Complete / Canceled
   final DateTime? updatedAt;
 
@@ -30,6 +35,7 @@ class Rfq {
     this.customerId,
     this.customerName,
     this.internalNote,
+    this.documentRequirement = const [],
     this.status,
     this.updatedAt,
     this.materialLines = const [],
@@ -48,6 +54,7 @@ class Rfq {
       'due_date': dueDate == null ? null : _dateOnly(dueDate!),
       'customer_id': customerId,
       'internal_note': internalNote,
+      'document_requirement': documentRequirement.join(','),
       'status': status,
     };
   }
@@ -62,6 +69,7 @@ class Rfq {
       customerId: map['customer_id'] as int?,
       customerName: map['customer_name'] as String?,
       internalNote: map['internal_note'] as String?,
+      documentRequirement: _splitCsv(map['document_requirement']),
       status: map['status'] as String?,
       updatedAt: map['updated_at'] is DateTime ? map['updated_at'] as DateTime : null,
     );
@@ -78,6 +86,13 @@ class Rfq {
     } catch (_) {
       return null;
     }
+  }
+
+  static List<String> _splitCsv(dynamic value) {
+    if (value == null) return [];
+    final s = value.toString();
+    if (s.isEmpty) return [];
+    return s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
   }
 
   @override

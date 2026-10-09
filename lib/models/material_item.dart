@@ -43,7 +43,16 @@ class MaterialItem {
   // quantity ditentukan di Material, repot saat repeat order dengan
   // quantity yang beda-beda. Lihat RfqMaterialLine di rfq_material.dart.
 
-  final double priceQuote;
+  final double priceQuote; // selalu dalam IDR (hasil konversi final)
+  // REVISI: Price - Quote sekarang bisa diisi manual dalam mata uang
+  // asing (ambil daftar dari Settings > Update Valuta / sama dengan
+  // VendorOptions.currency) -- priceQuoteCurrency & priceQuoteForeign
+  // Amount simpan apa yang diketik user (buat ditampilkan balik saat
+  // edit), sedangkan priceQuote di atas tetap hasil konversi ke IDR
+  // yang dipakai di semua kalkulasi lain (discount, total, DPP, VAT,
+  // Excel export) supaya tidak perlu ubah logic di tempat lain.
+  final String priceQuoteCurrency; // IDR, USD, dst
+  final double priceQuoteForeignAmount; // nilai yang diketik manual, dalam priceQuoteCurrency
   final DateTime? priceQuoteDate;
   final double totalDiscount;
   final double priceDiscount; // harga akhir setelah diskon
@@ -90,6 +99,8 @@ class MaterialItem {
     this.referenceGenuinePartNumber,
     this.existingItemDescription,
     this.priceQuote = 0,
+    this.priceQuoteCurrency = 'IDR',
+    this.priceQuoteForeignAmount = 0,
     this.priceQuoteDate,
     this.totalDiscount = 0,
     this.priceDiscount = 0,
@@ -136,6 +147,8 @@ class MaterialItem {
       'reference_genuine_part_number': referenceGenuinePartNumber,
       'existing_item_description': existingItemDescription,
       'price_quote': priceQuote,
+      'price_quote_currency': priceQuoteCurrency,
+      'price_quote_foreign_amount': priceQuoteForeignAmount,
       'price_quote_date': priceQuoteDate == null ? null : _dateOnly(priceQuoteDate!),
       'total_discount': totalDiscount,
       'price_discount': priceDiscount,
@@ -181,6 +194,8 @@ class MaterialItem {
       referenceGenuinePartNumber: map['reference_genuine_part_number'] as String?,
       existingItemDescription: map['existing_item_description'] as String?,
       priceQuote: _readDouble(map['price_quote']),
+      priceQuoteCurrency: (map['price_quote_currency'] as String?) ?? 'IDR',
+      priceQuoteForeignAmount: _readDouble(map['price_quote_foreign_amount']),
       priceQuoteDate: _readDate(map['price_quote_date']),
       totalDiscount: _readDouble(map['total_discount']),
       priceDiscount: _readDouble(map['price_discount']),
