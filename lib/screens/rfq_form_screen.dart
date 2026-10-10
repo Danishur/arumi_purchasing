@@ -303,6 +303,7 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
       dueDate: _dueDate,
       customerId: _customerId,
       internalNote: _internalNoteCtrl.text.trim().isEmpty ? null : _internalNoteCtrl.text.trim(),
+      documentRequirement: _documentRequirement,
       status: _status,
     );
 
@@ -440,6 +441,16 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
                     controller: _internalNoteCtrl,
                     hint: 'Catatan internal (tidak tampil ke customer/vendor)',
                     maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Document Requirement -- opsinya sama persis dengan
+                  // Documents di Material Form (MaterialOptions.documents).
+                  _label('Document Requirement'),
+                  _multiPickerBox(
+                    values: _documentRequirement,
+                    hint: '-- Pilih Document Requirement --',
+                    onTap: _pickDocumentRequirement,
                   ),
                   const SizedBox(height: 16),
 
@@ -702,6 +713,49 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
                 ),
               ),
               Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Sama seperti [_pickerBox], tapi untuk field multi-select (Document
+  /// Requirement) -- nilainya digabung koma, ada tanda "+" bukan panah
+  /// bawah, pola sama persis dengan _multiPickerBox di
+  /// vendor_form_screen.dart / material_form_screen.dart.
+  Widget _multiPickerBox({
+    required List<String> values,
+    required String hint,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  values.isEmpty ? hint : values.join(', '),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: values.isEmpty ? Colors.grey.shade400 : Colors.black87,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.add, color: Colors.grey.shade600),
             ],
           ),
         ),
