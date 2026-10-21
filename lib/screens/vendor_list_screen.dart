@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/vendor.dart';
 import '../providers/vendor_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/vendor_export.dart';
 import 'vendor_detail_screen.dart';
 import 'vendor_form_screen.dart';
 
@@ -20,11 +21,32 @@ class _VendorListScreenState extends State<VendorListScreen> {
 
   bool _selectionMode = false;
   final Set<int> _selectedIds = {};
+  bool _isExportingRecap = false;
+
+  // TAMBAHAN: fitur search -- filter list by nama/kode vendor.
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  List<Vendor> _filtered(List<Vendor> vendors) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return vendors;
+    return vendors.where((v) {
+      return v.vendorName.toLowerCase().contains(q) ||
+          v.vendorCode.toLowerCase().contains(q) ||
+          (v.legalStanding ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadVendors());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadVendors() async {
@@ -138,6 +160,27 @@ class _VendorListScreenState extends State<VendorListScreen> {
     }
   }
 
+  /// TAMBAHAN: Export Excel Rekap dari Vendor yang dipilih (mode select).
+  Future<void> _exportRecapExcel(List<Vendor> allVendors) async {
+    if (_selectedIds.isEmpty || _isExportingRecap) return;
+    setState(() => _isExportingRecap = true);
+    try {
+      final selected = allVendors.where((v) => v.id != null && _selectedIds.contains(v.id)).toList();
+      final path = await VendorExport.exportExcelRekap(selected);
+      if (path == null) return; // user batal pilih lokasi simpan
+      if (!mounted) return;
+      _showSnack('Export berhasil');
+      setState(() {
+        _selectionMode = false;
+        _selectedIds.clear();
+      });
+    } catch (e) {
+      _showSnack('Gagal export Excel rekap: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingRecap = false);
+    }
+  }
+
   Future<void> _confirmDelete(Vendor v) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -190,6 +233,19 @@ class _VendorListScreenState extends State<VendorListScreen> {
                   ),
                   tooltip: 'Pilih semua',
                   onPressed: () => _selectAll(provider.vendors),
+                ),
+                IconButton(
+                  icon: _isExportingRecap
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.file_download_outlined),
+                  tooltip: 'Export Excel Rekap',
+                  onPressed: _selectedIds.isEmpty || _isExportingRecap
+                      ? null
+                      : () => _exportRecapExcel(provider.vendors),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
@@ -269,20 +325,37 @@ class _VendorListScreenState extends State<VendorListScreen> {
     return Consumer<VendorProvider>(
       builder: (context, provider, _) {
         if (provider.vendors.isEmpty) {
-          return const Center(
-            child: Text(
-              'Belum ada vendor.\nTekan + untuk menambah.',
-              textAlign: TextAlign.center,
-            ),
+          return Column(
+            children: [
+              _searchBar(),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Belum ada vendor.\nTekan + untuk menambah.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
           );
         }
-        return RefreshIndicator(
-          onRefresh: _loadVendors,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: provider.vendors.length,
-            itemBuilder: (context, index) {
-              final v = provider.vendors[index];
+        final filtered = _filtered(provider.vendors);
+        return Column(
+          children: [
+            _searchBar(),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text('Tidak ada vendor yang cocok.',
+                          style: TextStyle(color: AppColors.textMuted)),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadVendors,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final v = filtered[index];
               final isSelected = v.id != null && _selectedIds.contains(v.id);
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -394,8 +467,50 @@ class _VendorListScreenState extends State<VendorListScreen> {
               );
             },
           ),
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _searchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() => _searchQuery = v),
+        decoration: InputDecoration(
+          hintText: 'Cari nama / kode vendor...',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() {
+                    _searchCtrl.clear();
+                    _searchQuery = '';
+                  }),
+                ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 }

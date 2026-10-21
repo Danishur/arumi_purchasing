@@ -6,6 +6,7 @@ import '../models/material_discount.dart';
 import '../models/material_item.dart';
 import '../providers/material_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/material_export.dart';
 import 'material_form_screen.dart';
 
 final _rupiahFmt = NumberFormat.decimalPattern('id_ID');
@@ -54,6 +55,23 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
         _hasError = true;
         _loading = false;
       });
+    }
+  }
+
+  bool _isExportingPdf = false;
+
+  /// TAMBAHAN: Export PDF dari Material Detail.
+  Future<void> _exportPdf() async {
+    if (_isExportingPdf) return;
+    setState(() => _isExportingPdf = true);
+    try {
+      final path = await MaterialExport.exportPdfDetail(_material, _discounts);
+      if (path == null) return; // user batal pilih lokasi simpan
+      _showSnack('Export berhasil');
+    } catch (e) {
+      _showSnack('Gagal export PDF: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingPdf = false);
     }
   }
 
@@ -217,6 +235,27 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
                     _sectionTitle('Other'),
                     _field('Documents', _material.documents.isEmpty ? null : _material.documents.join(', ')),
                     _field('Updated data', _formatDateTime(_material.updatedAt)),
+
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isExportingPdf ? null : _exportPdf,
+                        icon: _isExportingPdf
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('Export PDF'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                          side: const BorderSide(color: AppColors.danger),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

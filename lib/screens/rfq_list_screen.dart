@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/rfq.dart';
+import '../models/rfq_material.dart';
 import '../providers/rfq_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/rfq_excel_exporter.dart';
@@ -22,11 +23,33 @@ class _RfqListScreenState extends State<RfqListScreen> {
 
   bool _selectionMode = false;
   final Set<int> _selectedIds = {};
+  bool _isExportingRecap = false;
+
+  // TAMBAHAN: fitur search -- filter list by RFQ Number/Reference/Customer/PIC.
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  List<Rfq> _filtered(List<Rfq> rfqs) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return rfqs;
+    return rfqs.where((r) {
+      return r.rfqCode.toLowerCase().contains(q) ||
+          (r.reference ?? '').toLowerCase().contains(q) ||
+          (r.customerName ?? '').toLowerCase().contains(q) ||
+          (r.pic ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadRfqs());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRfqs() async {
@@ -180,6 +203,33 @@ class _RfqListScreenState extends State<RfqListScreen> {
     }
   }
 
+  /// TAMBAHAN: Export Excel Rekap -- dari RFQ yang dipilih (mode select),
+  /// jadi 1 file rekap gabungan (1 baris per Material, per RFQ).
+  Future<void> _exportRecapExcel() async {
+    if (_selectedIds.isEmpty || _isExportingRecap) return;
+    setState(() => _isExportingRecap = true);
+    try {
+      final provider = context.read<RfqProvider>();
+      final selectedRfqs = provider.rfqs.where((r) => r.id != null && _selectedIds.contains(r.id)).toList();
+      final linesByRfq = <int, List<RfqMaterialLine>>{};
+      for (final r in selectedRfqs) {
+        linesByRfq[r.id!] = await provider.getMaterialLinesForRfq(r.id!);
+      }
+      final path = await RfqExcelExporter.exportRecap(selectedRfqs, linesByRfq);
+      if (path == null) return; // user batal pilih lokasi simpan
+      if (!mounted) return;
+      _showSnack('Export berhasil');
+      setState(() {
+        _selectionMode = false;
+        _selectedIds.clear();
+      });
+    } catch (e) {
+      _showSnack('Gagal export Excel rekap: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingRecap = false);
+    }
+  }
+
   Color _statusColor(String? status) {
     switch (status) {
       case 'Complete':
@@ -218,6 +268,17 @@ class _RfqListScreenState extends State<RfqListScreen> {
                   ),
                   tooltip: 'Pilih semua',
                   onPressed: () => _selectAll(provider.rfqs),
+                ),
+                IconButton(
+                  icon: _isExportingRecap
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.file_download_outlined),
+                  tooltip: 'Export Excel Rekap',
+                  onPressed: _selectedIds.isEmpty || _isExportingRecap ? null : _exportRecapExcel,
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
@@ -297,20 +358,37 @@ class _RfqListScreenState extends State<RfqListScreen> {
     return Consumer<RfqProvider>(
       builder: (context, provider, _) {
         if (provider.rfqs.isEmpty) {
-          return const Center(
-            child: Text(
-              'Belum ada RFQ.\nTekan + untuk menambah.',
-              textAlign: TextAlign.center,
-            ),
+          return Column(
+            children: [
+              _searchBar(),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Belum ada RFQ.\nTekan + untuk menambah.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
           );
         }
-        return RefreshIndicator(
-          onRefresh: _loadRfqs,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: provider.rfqs.length,
-            itemBuilder: (context, index) {
-              final r = provider.rfqs[index];
+        final filtered = _filtered(provider.rfqs);
+        return Column(
+          children: [
+            _searchBar(),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text('Tidak ada RFQ yang cocok.',
+                          style: TextStyle(color: AppColors.textMuted)),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadRfqs,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final r = filtered[index];
               final isSelected = r.id != null && _selectedIds.contains(r.id);
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -408,8 +486,50 @@ class _RfqListScreenState extends State<RfqListScreen> {
               );
             },
           ),
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _searchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() => _searchQuery = v),
+        decoration: InputDecoration(
+          hintText: 'Cari RFQ Number / Reference / Customer / PIC...',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() {
+                    _searchCtrl.clear();
+                    _searchQuery = '';
+                  }),
+                ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 }

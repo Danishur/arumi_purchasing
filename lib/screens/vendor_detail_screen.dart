@@ -7,6 +7,7 @@ import '../models/vendor_contact.dart';
 import '../models/vendor_product.dart';
 import '../providers/vendor_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/vendor_export.dart';
 import 'vendor_form_screen.dart';
 
 /// Layar Detail Vendor -- pola sama persis dengan CustomerDetailScreen:
@@ -60,6 +61,23 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
         _hasError = true;
         _loading = false;
       });
+    }
+  }
+
+  bool _isExportingPdf = false;
+
+  /// TAMBAHAN: Export PDF dari Vendor Detail.
+  Future<void> _exportPdf() async {
+    if (_isExportingPdf) return;
+    setState(() => _isExportingPdf = true);
+    try {
+      final path = await VendorExport.exportPdfDetail(_vendor, _contacts, _products, _bankAccounts);
+      if (path == null) return; // user batal pilih lokasi simpan
+      _showSnack('Export berhasil');
+    } catch (e) {
+      _showSnack('Gagal export PDF: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingPdf = false);
     }
   }
 
@@ -210,6 +228,26 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           style: TextStyle(color: AppColors.textMuted, fontSize: 13))
                     else
                       ..._contacts.asMap().entries.map((entry) => _picCard(entry.key + 1, entry.value)),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isExportingPdf ? null : _exportPdf,
+                        icon: _isExportingPdf
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('Export PDF'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                          side: const BorderSide(color: AppColors.danger),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

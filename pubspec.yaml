@@ -30,6 +30,10 @@ dependencies:
   # Package pure-Dart, tidak butuh Excel ter-install di komputer.
   excel: ^4.0.6
 
+  # Generate file .pdf buat fitur Export PDF (RFQ/Customer/Vendor/
+  # Material). Package pure-Dart, tidak butuh software PDF ter-install.
+  pdf: ^3.10.8
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

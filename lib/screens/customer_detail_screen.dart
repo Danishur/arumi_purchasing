@@ -4,6 +4,7 @@ import '../models/customer.dart';
 import '../models/customer_contact.dart';
 import '../providers/customer_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/customer_export.dart';
 import 'customer_form_screen.dart';
 
 /// Layar Detail Customer -- dibuka saat user tap salah satu data
@@ -53,6 +54,23 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         _hasError = true;
         _loading = false;
       });
+    }
+  }
+
+  bool _isExportingPdf = false;
+
+  /// TAMBAHAN: Export PDF dari Customer Detail.
+  Future<void> _exportPdf() async {
+    if (_isExportingPdf) return;
+    setState(() => _isExportingPdf = true);
+    try {
+      final path = await CustomerExport.exportPdfDetail(_customer, _contacts);
+      if (path == null) return; // user batal pilih lokasi simpan
+      _showSnack('Export berhasil');
+    } catch (e) {
+      _showSnack('Gagal export PDF: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingPdf = false);
     }
   }
 
@@ -181,6 +199,26 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       ..._contacts.asMap().entries.map(
                             (entry) => _picCard(entry.key + 1, entry.value),
                           ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isExportingPdf ? null : _exportPdf,
+                        icon: _isExportingPdf
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('Export PDF'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                          side: const BorderSide(color: AppColors.danger),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

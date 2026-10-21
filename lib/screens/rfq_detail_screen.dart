@@ -6,6 +6,7 @@ import '../models/rfq_material.dart';
 import '../providers/rfq_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/rfq_excel_exporter.dart';
+import '../utils/rfq_pdf_exporter.dart';
 import 'rfq_form_screen.dart';
 
 /// Layar Detail RFQ -- pola sama persis dengan
@@ -111,13 +112,34 @@ class _RfqDetailScreenState extends State<RfqDetailScreen> {
   String _formatDate(DateTime? dt) => dt == null ? '-' : DateFormat('dd/MM/yyyy').format(dt);
   String _formatDateTime(DateTime? dt) => dt == null ? '-' : DateFormat('dd/MM/yyyy HH:mm:ss').format(dt);
 
+  bool _isExportingExcel = false;
+  bool _isExportingPdf = false;
+
   Future<void> _exportExcel() async {
+    if (_isExportingExcel) return;
+    setState(() => _isExportingExcel = true);
     try {
       final path = await RfqExcelExporter.export(_rfq, _lines);
       if (path == null) return; // user batal pilih lokasi simpan
       _showSnack('Export berhasil');
     } catch (e) {
       _showSnack('Gagal export Excel: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingExcel = false);
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (_isExportingPdf) return;
+    setState(() => _isExportingPdf = true);
+    try {
+      final path = await RfqPdfExporter.export(_rfq, _lines);
+      if (path == null) return; // user batal pilih lokasi simpan
+      _showSnack('Export berhasil');
+    } catch (e) {
+      _showSnack('Gagal export PDF: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingPdf = false);
     }
   }
 
@@ -217,12 +239,38 @@ class _RfqDetailScreenState extends State<RfqDetailScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: _exportExcel,
-                        icon: const Icon(Icons.file_download_outlined),
-                        label: const Text('Export Excel'),
+                        onPressed: _isExportingExcel ? null : _exportExcel,
+                        icon: _isExportingExcel
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.file_download_outlined),
+                        label: const Text('Export Excel Satuan'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.secondary,
                           side: const BorderSide(color: AppColors.secondary),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isExportingPdf ? null : _exportPdf,
+                        icon: _isExportingPdf
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('Export PDF'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                          side: const BorderSide(color: AppColors.danger),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),

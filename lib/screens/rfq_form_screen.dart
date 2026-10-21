@@ -14,6 +14,8 @@ import '../utils/rfq_options.dart';
 import '../widgets/multi_option_picker_dialog.dart';
 import '../widgets/option_picker_dialog.dart';
 
+final _rupiahFmt = NumberFormat.decimalPattern('id_ID');
+
 /// Satu baris Material terpilih di "Material List" -- bawa Quantity &
 /// Unit sendiri (dipindah dari Material ke RFQ sesuai revisi owner).
 class _RfqMaterialRow {
@@ -169,6 +171,21 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
   String _materialOptionLabel(MaterialItem m) {
     final desc = (m.itemDescription ?? '').trim();
     return desc.isEmpty ? m.materialCode : '$desc (${m.materialCode})';
+  }
+
+  /// TAMBAHAN: Total Harga -- jumlah (Qty x Harga Satuan Material) dari
+  /// semua baris di Material List, dihitung live tiap Quantity/Material
+  /// berubah. Harga Satuan diambil dari MaterialItem.totalPrice (sudah
+  /// dalam Rupiah, hasil kalkulasi di Material Form).
+  double get _totalHarga {
+    double sum = 0;
+    for (final row in _materialRows) {
+      final material = _materials.where((m) => m.id == row.materialId);
+      if (material.isEmpty) continue;
+      final qty = int.tryParse(row.quantityCtrl.text) ?? 0;
+      sum += qty * material.first.totalPrice;
+    }
+    return sum;
   }
 
   Future<void> _pickDateRequest() async {
@@ -433,6 +450,12 @@ class _RfqFormScreenState extends State<RfqFormScreen> {
                     )
                   else
                     ..._materialRows.map((row) => _materialLineCard(row)),
+                  const SizedBox(height: 16),
+
+                  // TAMBAHAN: Total Harga -- di atas Internal Note, di
+                  // bawah Material List, sesuai permintaan.
+                  _label('Total Harga'),
+                  _readOnlyBox('Rp ${_rupiahFmt.format(_totalHarga)}'),
                   const SizedBox(height: 16),
 
                   // 10. Internal Note

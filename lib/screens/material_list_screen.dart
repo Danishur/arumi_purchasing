@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/material_item.dart';
 import '../providers/material_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/material_export.dart';
 import 'material_detail_screen.dart';
 import 'material_form_screen.dart';
 
@@ -20,11 +21,33 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
 
   bool _selectionMode = false;
   final Set<int> _selectedIds = {};
+  bool _isExportingRecap = false;
+
+  // TAMBAHAN: fitur search -- filter list by nama/kode material.
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  List<MaterialItem> _filtered(List<MaterialItem> materials) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return materials;
+    return materials.where((m) {
+      return (m.itemDescription ?? '').toLowerCase().contains(q) ||
+          m.materialCode.toLowerCase().contains(q) ||
+          (m.itemPartNumber ?? '').toLowerCase().contains(q) ||
+          (m.vendorName ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMaterials());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadMaterials() async {
@@ -138,6 +161,27 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
     }
   }
 
+  /// TAMBAHAN: Export Excel Rekap dari Material yang dipilih (mode select).
+  Future<void> _exportRecapExcel(List<MaterialItem> allMaterials) async {
+    if (_selectedIds.isEmpty || _isExportingRecap) return;
+    setState(() => _isExportingRecap = true);
+    try {
+      final selected = allMaterials.where((m) => m.id != null && _selectedIds.contains(m.id)).toList();
+      final path = await MaterialExport.exportExcelRekap(selected);
+      if (path == null) return; // user batal pilih lokasi simpan
+      if (!mounted) return;
+      _showSnack('Export berhasil');
+      setState(() {
+        _selectionMode = false;
+        _selectedIds.clear();
+      });
+    } catch (e) {
+      _showSnack('Gagal export Excel rekap: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingRecap = false);
+    }
+  }
+
   Future<void> _confirmDelete(MaterialItem m) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -191,6 +235,19 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                   ),
                   tooltip: 'Pilih semua',
                   onPressed: () => _selectAll(provider.materials),
+                ),
+                IconButton(
+                  icon: _isExportingRecap
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.file_download_outlined),
+                  tooltip: 'Export Excel Rekap',
+                  onPressed: _selectedIds.isEmpty || _isExportingRecap
+                      ? null
+                      : () => _exportRecapExcel(provider.materials),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
@@ -270,20 +327,37 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
     return Consumer<MaterialProvider>(
       builder: (context, provider, _) {
         if (provider.materials.isEmpty) {
-          return const Center(
-            child: Text(
-              'Belum ada material.\nTekan + untuk menambah.',
-              textAlign: TextAlign.center,
-            ),
+          return Column(
+            children: [
+              _searchBar(),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Belum ada material.\nTekan + untuk menambah.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
           );
         }
-        return RefreshIndicator(
-          onRefresh: _loadMaterials,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: provider.materials.length,
-            itemBuilder: (context, index) {
-              final m = provider.materials[index];
+        final filtered = _filtered(provider.materials);
+        return Column(
+          children: [
+            _searchBar(),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text('Tidak ada material yang cocok.',
+                          style: TextStyle(color: AppColors.textMuted)),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadMaterials,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final m = filtered[index];
               final isSelected = m.id != null && _selectedIds.contains(m.id);
               final title = (m.itemDescription != null && m.itemDescription!.isNotEmpty)
                   ? m.itemDescription!
@@ -392,8 +466,50 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               );
             },
           ),
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _searchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() => _searchQuery = v),
+        decoration: InputDecoration(
+          hintText: 'Cari nama / kode material...',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() {
+                    _searchCtrl.clear();
+                    _searchQuery = '';
+                  }),
+                ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 }

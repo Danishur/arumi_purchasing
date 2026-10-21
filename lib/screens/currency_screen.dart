@@ -318,7 +318,21 @@ class _CurrencyScreenState extends State<CurrencyScreen> {
                             ),
                           ),
                           title: Text(r.currencyCode, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('${_numFmt.format(r.rateToIdr)} IDR'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${_numFmt.format(r.rateToIdr)} IDR'),
+                              // TAMBAHAN: tanggal update kurs, muncul
+                              // setiap setelah tambah/edit currency.
+                              Text(
+                                r.updatedAt == null
+                                    ? 'Belum pernah diupdate'
+                                    : 'Update: ${DateFormat('dd/MM/yyyy HH:mm').format(r.updatedAt!)}',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                              ),
+                            ],
+                          ),
+                          isThreeLine: true,
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

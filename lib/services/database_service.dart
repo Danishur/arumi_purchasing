@@ -576,13 +576,27 @@ class DatabaseService {
   /// `vendors` (buat nama supplier) sekaligus -- dipakai buat tampilan
   /// Material List DAN buat Export Excel (kolom Harga Satuan, Toko/
   /// Supplier, Subtotal).
+  /// TAMBAHAN: ikut ambil field tambahan dari `materials`/`vendors`
+  /// (terms_of_payment, vat, delivery_terms, weight, dimensi, documents)
+  /// buat format baru "Export Excel Satuan" di rfq_excel_exporter.dart.
   Future<List<Map<String, dynamic>>> getRfqMaterialsByRfqId(int rfqId) async {
     final conn = await _conn;
     final results = await conn.query('''
       SELECT rm.*,
              m.item_description AS item_description,
              m.total_price AS material_total_price,
-             v.vendor_name AS vendor_name
+             m.vat AS material_vat,
+             m.delivery_terms AS delivery_terms,
+             m.weight AS weight,
+             m.weight_unit AS weight_unit,
+             m.dim_p AS dim_p,
+             m.dim_l AS dim_l,
+             m.dim_t AS dim_t,
+             m.dim_unit AS dim_unit,
+             m.documents AS documents,
+             v.id AS vendor_id,
+             v.vendor_name AS vendor_name,
+             v.terms_of_payment AS terms_of_payment
       FROM rfq_materials rm
       LEFT JOIN materials m ON m.id = rm.material_id
       LEFT JOIN vendors v ON v.id = m.vendor_id
@@ -688,8 +702,11 @@ class DatabaseService {
 
   Future<int> insertCurrencyRate(String currencyCode, double rateToIdr) async {
     final conn = await _conn;
+    // TAMBAHAN: isi `updated_at` eksplisit dengan NOW() tiap kali
+    // tambah/edit currency, supaya "tanggal update kurs" selalu akurat
+    // walau kolomnya tidak di-set ON UPDATE CURRENT_TIMESTAMP di DB.
     final result = await conn.query(
-      'INSERT INTO currency_rates (currency_code, rate_to_idr) VALUES (?, ?)',
+      'INSERT INTO currency_rates (currency_code, rate_to_idr, updated_at) VALUES (?, ?, NOW())',
       [currencyCode, rateToIdr],
     );
     return result.insertId!;
@@ -697,7 +714,10 @@ class DatabaseService {
 
   Future<void> updateCurrencyRate(int id, double rateToIdr) async {
     final conn = await _conn;
-    await conn.query('UPDATE currency_rates SET rate_to_idr = ? WHERE id = ?', [rateToIdr, id]);
+    await conn.query(
+      'UPDATE currency_rates SET rate_to_idr = ?, updated_at = NOW() WHERE id = ?',
+      [rateToIdr, id],
+    );
   }
 
   Future<void> deleteCurrencyRate(int id) async {

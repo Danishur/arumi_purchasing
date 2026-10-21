@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/customer.dart';
 import '../providers/customer_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/customer_export.dart';
 import 'customer_detail_screen.dart';
 import 'customer_form_screen.dart';
 
@@ -22,6 +23,22 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   // atau long-press salah satu item di list.
   bool _selectionMode = false;
   final Set<int> _selectedIds = {};
+  bool _isExportingRecap = false;
+
+  // TAMBAHAN: fitur search -- filter list by nama/kode customer, posisi
+  // kotak search di bawah judul "Data Customer" sesuai sketsa referensi.
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  List<Customer> _filtered(List<Customer> customers) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return customers;
+    return customers.where((c) {
+      return c.name.toLowerCase().contains(q) ||
+          c.customerCode.toLowerCase().contains(q) ||
+          (c.customerType ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -80,6 +97,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     // loadCustomers() lewat provider, jadi list ini otomatis ikut update
     // (lihat Consumer<CustomerProvider> di _buildBody) tanpa perlu
     // reload manual di sini lagi.
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   void _toggleSelectionMode() {
@@ -148,6 +171,27 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     }
   }
 
+  /// TAMBAHAN: Export Excel Rekap dari Customer yang dipilih (mode select).
+  Future<void> _exportRecapExcel(List<Customer> allCustomers) async {
+    if (_selectedIds.isEmpty || _isExportingRecap) return;
+    setState(() => _isExportingRecap = true);
+    try {
+      final selected = allCustomers.where((c) => c.id != null && _selectedIds.contains(c.id)).toList();
+      final path = await CustomerExport.exportExcelRekap(selected);
+      if (path == null) return; // user batal pilih lokasi simpan
+      if (!mounted) return;
+      _showSnack('Export berhasil');
+      setState(() {
+        _selectionMode = false;
+        _selectedIds.clear();
+      });
+    } catch (e) {
+      _showSnack('Gagal export Excel rekap: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isExportingRecap = false);
+    }
+  }
+
   Future<void> _confirmDelete(Customer c) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -201,6 +245,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   ),
                   tooltip: 'Pilih semua',
                   onPressed: () => _selectAll(provider.customers),
+                ),
+                IconButton(
+                  icon: _isExportingRecap
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.file_download_outlined),
+                  tooltip: 'Export Excel Rekap',
+                  onPressed: _selectedIds.isEmpty || _isExportingRecap
+                      ? null
+                      : () => _exportRecapExcel(provider.customers),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
@@ -280,20 +337,37 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     return Consumer<CustomerProvider>(
       builder: (context, provider, _) {
         if (provider.customers.isEmpty) {
-          return const Center(
-            child: Text(
-              'Belum ada customer.\nTekan + untuk menambah.',
-              textAlign: TextAlign.center,
-            ),
+          return Column(
+            children: [
+              _searchBar(),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Belum ada customer.\nTekan + untuk menambah.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
           );
         }
-        return RefreshIndicator(
-          onRefresh: _loadCustomers,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: provider.customers.length,
-            itemBuilder: (context, index) {
-              final c = provider.customers[index];
+        final filtered = _filtered(provider.customers);
+        return Column(
+          children: [
+            _searchBar(),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text('Tidak ada customer yang cocok.',
+                          style: TextStyle(color: AppColors.textMuted)),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadCustomers,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final c = filtered[index];
               final isSelected = c.id != null && _selectedIds.contains(c.id);
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -383,8 +457,50 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               );
             },
           ),
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _searchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() => _searchQuery = v),
+        decoration: InputDecoration(
+          hintText: 'Cari nama / kode customer...',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() {
+                    _searchCtrl.clear();
+                    _searchQuery = '';
+                  }),
+                ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 }
