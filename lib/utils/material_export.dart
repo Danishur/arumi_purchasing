@@ -10,12 +10,17 @@ String _rupiah(double v) => 'Rp ${_rupiahFmt.format(v)}';
 /// Export PDF (dari Material Detail).
 class MaterialExport {
   static Future<String?> exportExcelRekap(List<MaterialItem> materials) async {
+    // REVISI: tambahan kolom Price (nilai yang diketik manual, dalam
+    // mata uang aslinya) & Currency, posisinya di antara Vendor dan
+    // Price IDR -- sesuai contoh format yang dikirim.
     final rows = materials
         .map((m) => [
               m.materialCode,
               m.itemDescription ?? '-',
               m.category ?? '-',
               m.vendorName ?? '-',
+              m.priceQuoteForeignAmount,
+              m.priceQuoteCurrency,
               m.totalPrice,
               m.vat ? 'Yes' : 'No',
               m.dpp,
@@ -36,7 +41,9 @@ class MaterialExport {
         'Item Description',
         'Category',
         'Vendor',
-        'Total Price',
+        'Price',
+        'Currency',
+        'Price IDR',
         'VAT',
         'DPP',
         'VAT Value',

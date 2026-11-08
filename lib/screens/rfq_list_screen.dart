@@ -29,14 +29,26 @@ class _RfqListScreenState extends State<RfqListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  // REVISI: search sekarang mencakup SEMUA field data RFQ.
   List<Rfq> _filtered(List<Rfq> rfqs) {
     final q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return rfqs;
     return rfqs.where((r) {
-      return r.rfqCode.toLowerCase().contains(q) ||
-          (r.reference ?? '').toLowerCase().contains(q) ||
-          (r.customerName ?? '').toLowerCase().contains(q) ||
-          (r.pic ?? '').toLowerCase().contains(q);
+      final fields = <String>[
+        r.rfqCode,
+        r.reference ?? '',
+        r.customerName ?? '',
+        r.pic ?? '',
+        r.internalNote ?? '',
+        r.status ?? '',
+        ...r.documentRequirement,
+        for (final line in r.materialLines) ...[
+          line.itemDescription ?? '',
+          line.vendorName ?? '',
+          line.unit ?? '',
+        ],
+      ];
+      return fields.any((f) => f.toLowerCase().contains(q));
     }).toList();
   }
 

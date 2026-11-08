@@ -1,91 +1,30 @@
-/// Daftar pilihan tetap untuk field-field dropdown/multi-select di form
-/// Vendor, sesuai data yang dikirim (screenshot referensi desain).
+import 'dropdown_options_cache.dart';
+
+/// Daftar pilihan untuk field-field dropdown/multi-select di form
+/// Vendor.
 ///
-/// CATATAN: sama seperti CustomerOptions, di-hardcode dulu di sini
-/// (bukan tabel database terpisah) supaya modul Vendor bisa selesai
-/// lebih cepat. Gampang dipindah ke tabel MySQL nanti kalau perlu bisa
-/// diedit sendiri oleh user tanpa update aplikasi.
+/// TAMBAHAN: isinya SEKARANG diambil dari tabel `dropdown_options`
+/// (lewat [DropdownOptionsCache]), bisa diedit sendiri oleh user lewat
+/// Settings > Edit Dropdown > Vendor tanpa update aplikasi. Class ini
+/// sengaja dipertahankan sebagai getter statis supaya semua pemakaian
+/// lama (`VendorOptions.legalStanding`, dst) tidak perlu diubah.
 class VendorOptions {
-  static const List<String> legalStanding = [
-    'Toko',
-    'PT',
-    'CV',
-    'Perorangan',
-    'UD',
-    'Ltd',
-    'Koperasi',
-  ];
+  static List<String> get legalStanding => DropdownOptionsCache.get('vendor_legal_standing');
 
-  static const List<String> termsOfPayment = [
-    'Cash',
-    'TOP 7 Days',
-    'TOP 14 Days',
-    'TOP 21 Days',
-    'TOP 30 Days',
-    'TOP 60 Days',
-    'TOP 45 Days',
-    '20-80',
-    '25-75',
-    '30-70',
-    '40-60',
-    '50-50',
-    '60-40',
-    '30-Balance TOP 30 Days',
-    '50-Balance TOP 30 Days',
-    '50-Balance TOP 60 Days',
-    '50-Balance TOP 90 Days',
-  ];
+  static List<String> get termsOfPayment => DropdownOptionsCache.get('vendor_terms_of_payment');
 
-  static const List<String> scopeOfWork = [
-    'Warehouse',
-    'Trucking',
-    'Shipping',
-    'Industrial',
-  ];
+  // SENGAJA satu kategori dengan MaterialOptions.scopeOfWork/subSow di
+  // bawah -- Material Form pilih dari list yang sama (lihat catatan di
+  // material_options.dart), jadi edit dari salah satu Settings > Edit
+  // Dropdown (Vendor ATAU Material) otomatis berlaku untuk keduanya.
+  static List<String> get scopeOfWork => DropdownOptionsCache.get('scope_of_work');
 
-  static const List<String> subSow = [
-    'Sparepart',
-    'Undercarriage',
-    'Tools',
-    'Consumable',
-    'Electrical',
-    'Mechanical',
-    'Civil',
-    'Safety',
-    'Tire',
-    'Raw material',
-    'Service / Jasa',
-    'Fire suppression',
-    'Engine (Set)',
-    // CATATAN: di foto referensi item terakhir tertulis "spae" (tulisan
-    // tangan/terpotong) -- kemungkinan besar maksudnya "Spare". Kalau
-    // salah, tinggal ganti teksnya di sini, tidak perlu ubah kode lain.
-    'Spare',
-  ];
+  static List<String> get subSow => DropdownOptionsCache.get('sub_sow');
 
-  static const List<String> supplyChainClassification = [
-    'Principle',
-    'Distributor',
-    'Agen',
-    'Reseller',
-    'Packager / Fabricator',
-    'Rental',
-    'Installer / Service',
-    'Unclassified',
-  ];
+  static List<String> get supplyChainClassification =>
+      DropdownOptionsCache.get('vendor_supply_chain_classification');
 
-  static const List<String> currency = [
-    'IDR',
-    'USD',
-    'SGD',
-    'GPB',
-    'EUR',
-    'AUD',
-    'HKD',
-    'JPY',
-    'MYR',
-    // CATATAN: daftar di foto referensi terpotong (ada scroll ke bawah
-    // setelah MYR) -- tambahkan currency lain di sini kalau ada yang
-    // kurang, formatnya sama (kode 3 huruf).
-  ];
+  // SENGAJA satu kategori dengan currency di Material Form (Price Quote
+  // Currency) & Settings > Update Valuta.
+  static List<String> get currency => DropdownOptionsCache.get('currency');
 }

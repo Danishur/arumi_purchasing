@@ -724,4 +724,54 @@ class DatabaseService {
     final conn = await _conn;
     await conn.query('DELETE FROM currency_rates WHERE id = ?', [id]);
   }
+
+  // ==================== DROPDOWN OPTIONS (Settings > Edit Dropdown) ====================
+  //
+  // TAMBAHAN: dulu isi semua dropdown (Terms of Payment, Legal Standing,
+  // Scope of Work, dst) di-hardcode di CustomerOptions/VendorOptions/
+  // MaterialOptions/RfqOptions (lihat folder lib/utils/). Sekarang
+  // dipindah ke tabel `dropdown_options` supaya bisa diedit sendiri oleh
+  // user lewat Settings > Edit Dropdown tanpa update aplikasi. Table
+  // belum otomatis dibuat migration-nya di sini (project ini tidak
+  // pakai migration runner) -- SQL CREATE TABLE-nya ada di catatan yang
+  // dikirim terpisah, harus dijalankan sekali manual lewat phpMyAdmin.
+  //
+  // `category` = kunci dropdown mana (mis. `vendor_legal_standing`),
+  // `value` = 1 baris pilihan dalam kategori itu.
+
+  Future<List<Map<String, dynamic>>> getAllDropdownOptions() async {
+    final conn = await _conn;
+    final results = await conn.query(
+      'SELECT * FROM dropdown_options ORDER BY category ASC, id ASC',
+    );
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getDropdownOptionsByCategory(String category) async {
+    final conn = await _conn;
+    final results = await conn.query(
+      'SELECT * FROM dropdown_options WHERE category = ? ORDER BY id ASC',
+      [category],
+    );
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<int> insertDropdownOption(String category, String value) async {
+    final conn = await _conn;
+    final result = await conn.query(
+      'INSERT INTO dropdown_options (category, value) VALUES (?, ?)',
+      [category, value],
+    );
+    return result.insertId!;
+  }
+
+  Future<void> updateDropdownOption(int id, String value) async {
+    final conn = await _conn;
+    await conn.query('UPDATE dropdown_options SET value = ? WHERE id = ?', [value, id]);
+  }
+
+  Future<void> deleteDropdownOption(int id) async {
+    final conn = await _conn;
+    await conn.query('DELETE FROM dropdown_options WHERE id = ?', [id]);
+  }
 }

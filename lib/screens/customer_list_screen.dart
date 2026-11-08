@@ -30,13 +30,29 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  // REVISI: search sekarang mencakup SEMUA field data customer (bukan
+  // cuma nama/kode/tipe) -- termasuk alamat, NPWP, terms of payment,
+  // status aktif, dan data PIC/kontak-nya.
   List<Customer> _filtered(List<Customer> customers) {
     final q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return customers;
     return customers.where((c) {
-      return c.name.toLowerCase().contains(q) ||
-          c.customerCode.toLowerCase().contains(q) ||
-          (c.customerType ?? '').toLowerCase().contains(q);
+      final fields = <String>[
+        c.name,
+        c.customerCode,
+        c.npwpNumber ?? '',
+        c.termsOfPayment ?? '',
+        c.customerType ?? '',
+        c.address ?? '',
+        c.isActive ? 'aktif' : 'nonaktif',
+        for (final p in c.contacts) ...[
+          p.picName,
+          p.position,
+          p.contact,
+          p.email,
+        ],
+      ];
+      return fields.any((f) => f.toLowerCase().contains(q));
     }).toList();
   }
 

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import 'currency_screen.dart';
+import 'edit_dropdown_menu_screen.dart';
 
 /// Layar Settings -- dibuka dari Home. Isinya 2 menu sesuai sketsa:
-/// "Edit Dropdown" (menyusul) dan "Update Valuta" (sudah aktif).
+/// "Edit Dropdown" dan "Update Valuta" (keduanya sudah aktif).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -23,9 +24,11 @@ class SettingsScreen extends StatelessWidget {
             context,
             icon: Icons.tune,
             title: 'Edit Dropdown',
-            subtitle: 'Menyusul -- edit isi pilihan dropdown di semua form',
-            enabled: false,
-            onTap: () {},
+            subtitle: 'Edit isi pilihan dropdown di semua form',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EditDropdownMenuScreen()),
+            ),
           ),
           const SizedBox(height: 12),
           _menuCard(

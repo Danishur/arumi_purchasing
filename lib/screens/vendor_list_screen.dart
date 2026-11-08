@@ -27,13 +27,31 @@ class _VendorListScreenState extends State<VendorListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  // REVISI: search sekarang mencakup SEMUA field data vendor (alamat,
+  // NPWP, terms of payment, scope of work, sub SOW, supply chain
+  // classification, internal note, dst) termasuk data PIC & produk.
   List<Vendor> _filtered(List<Vendor> vendors) {
     final q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return vendors;
     return vendors.where((v) {
-      return v.vendorName.toLowerCase().contains(q) ||
-          v.vendorCode.toLowerCase().contains(q) ||
-          (v.legalStanding ?? '').toLowerCase().contains(q);
+      final fields = <String>[
+        v.vendorName,
+        v.vendorCode,
+        v.legalStanding ?? '',
+        v.npwp ?? '',
+        v.termsOfPayment ?? '',
+        ...v.scopeOfWork,
+        ...v.subSow,
+        v.supplyChainClassification ?? '',
+        v.internalNote ?? '',
+        v.vendorAddress ?? '',
+        v.picWebsite ?? '',
+        v.isVerified ? 'verified' : 'belum verified',
+        v.isActive ? 'aktif' : 'nonaktif',
+        for (final p in v.contacts) ...[p.picName, p.position, p.contact, p.email],
+        for (final p in v.products) p.productName,
+      ];
+      return fields.any((f) => f.toLowerCase().contains(q));
     }).toList();
   }
 

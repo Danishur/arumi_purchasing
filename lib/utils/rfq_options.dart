@@ -1,15 +1,17 @@
-/// Daftar pilihan tetap untuk field "Status" di form RFQ, sesuai
-/// screenshot referensi desain yang dikirim.
+import 'dropdown_options_cache.dart';
+
+/// Daftar pilihan untuk field "Status" di form RFQ.
 ///
-/// CATATAN: "Unit" di form RFQ (dipilih per baris Material List)
-/// SENGAJA pakai daftar yang SAMA dengan MaterialOptions.unit --
-/// lihat pemakaiannya di rfq_form_screen.dart, tidak diduplikasi di
-/// sini.
+/// TAMBAHAN: isinya SEKARANG diambil dari tabel `dropdown_options`
+/// (lewat [DropdownOptionsCache]), bisa diedit sendiri oleh user lewat
+/// Settings > Edit Dropdown > RFQ tanpa update aplikasi.
+///
+/// CATATAN: "Document Requirement" di form RFQ SENGAJA pakai daftar
+/// yang SAMA dengan MaterialOptions.documents (kategori
+/// `material_documents`) -- jadi tidak ada getter terpisah di sini,
+/// lihat pemakaiannya di rfq_form_screen.dart. "Unit" di form RFQ
+/// (dipilih per baris Material List) juga masih SAMA dengan
+/// MaterialOptions.unit -- tidak diduplikasi di sini.
 class RfqOptions {
-  static const List<String> status = [
-    'Clarification-Customer',
-    'Clarification-Vendor',
-    'Complete',
-    'Canceled',
-  ];
+  static List<String> get status => DropdownOptionsCache.get('rfq_status');
 }

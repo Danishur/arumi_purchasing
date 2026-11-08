@@ -27,14 +27,37 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  // REVISI: search sekarang mencakup SEMUA field data material.
   List<MaterialItem> _filtered(List<MaterialItem> materials) {
     final q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return materials;
     return materials.where((m) {
-      return (m.itemDescription ?? '').toLowerCase().contains(q) ||
-          m.materialCode.toLowerCase().contains(q) ||
-          (m.itemPartNumber ?? '').toLowerCase().contains(q) ||
-          (m.vendorName ?? '').toLowerCase().contains(q);
+      final fields = <String>[
+        m.itemDescription ?? '',
+        m.materialCode,
+        m.itemPartNumber ?? '',
+        m.vendorName ?? '',
+        m.scopeOfWork ?? '',
+        m.subSow ?? '',
+        m.brandUnitInstalledOn ?? '',
+        m.typeUnitInstalledOn ?? '',
+        m.category ?? '',
+        m.itemManufacturer ?? '',
+        m.originCountry ?? '',
+        m.itemType ?? '',
+        m.size ?? '',
+        m.referenceGenuinePartNumber ?? '',
+        m.existingItemDescription ?? '',
+        m.priceQuoteCurrency,
+        m.deliveryTerms ?? '',
+        m.deliveryAddress ?? '',
+        m.dimUnit ?? '',
+        m.weightUnit ?? '',
+        ...m.documents,
+        m.isActive ? 'aktif' : 'nonaktif',
+        m.isTransaction ? 'y' : 'n',
+      ];
+      return fields.any((f) => f.toLowerCase().contains(q));
     }).toList();
   }
 
