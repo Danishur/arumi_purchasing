@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/customer.dart';
 import '../models/customer_contact.dart';
 import '../services/database_service.dart';
+import '../utils/search_index.dart';
 
 class CustomerProvider extends ChangeNotifier {
   List<Customer> _customers = [];
@@ -13,9 +14,34 @@ class CustomerProvider extends ChangeNotifier {
   /// saat user benar-benar buka form edit customer tertentu.
   Future<void> loadCustomers() async {
     final data = await DatabaseService.instance.getCustomers();
-    _customers = data.map((e) => Customer.fromMap(e)).toList();
+    // Global Search: PIC/kontak dimuat sekaligus (1 query untuk semua
+    // customer) HANYA untuk membangun index pencarian -- bukan 1 query
+    // per baris.
+    var contactRows = <Map<String, dynamic>>[];
+    try {
+      contactRows = await DatabaseService.instance.getAllChildRows('customer_contacts');
+    } catch (_) {}
+    final byCustomer = SearchIndex.groupBy(contactRows, 'customer_id');
+    _searchIndex = {};
+    _customers = data.map((e) {
+      final c = Customer.fromMap(e);
+      final id = c.id;
+      if (id != null) {
+        _searchIndex[id] = SearchIndex.build(
+          e,
+          children: byCustomer[id] ?? const [],
+          extra: [c.customerCode, c.isActive ? 'aktif' : 'nonaktif'],
+        );
+      }
+      return c;
+    }).toList();
     notifyListeners();
   }
+
+  Map<int, String> _searchIndex = {};
+
+  /// Teks index Global Search untuk 1 customer (semua kolom + PIC).
+  String searchTextOf(int? id) => id == null ? '' : (_searchIndex[id] ?? '');
 
   /// Diambil terpisah (on-demand) saat form edit dibuka, supaya layar
   /// list tidak perlu N query sekaligus (1 query customers + N query

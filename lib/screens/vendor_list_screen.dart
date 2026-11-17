@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/vendor.dart';
 import '../providers/vendor_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/search_index.dart';
 import '../utils/vendor_export.dart';
 import 'vendor_detail_screen.dart';
 import 'vendor_form_screen.dart';
@@ -27,32 +28,16 @@ class _VendorListScreenState extends State<VendorListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  // REVISI: search sekarang mencakup SEMUA field data vendor (alamat,
-  // NPWP, terms of payment, scope of work, sub SOW, supply chain
-  // classification, internal note, dst) termasuk data PIC & produk.
+  // REVISI (Global Search): mencari ke SEMUA field data -- teks index
+  // dibangun provider dari seluruh kolom tabel + data relasi (PIC, bank,
+  // produk/brand, diskon, material RFQ, dst), lihat SearchIndex.
   List<Vendor> _filtered(List<Vendor> vendors) {
-    final q = _searchQuery.trim().toLowerCase();
+    final q = _searchQuery.trim();
     if (q.isEmpty) return vendors;
-    return vendors.where((v) {
-      final fields = <String>[
-        v.vendorName,
-        v.vendorCode,
-        v.legalStanding ?? '',
-        v.npwp ?? '',
-        v.termsOfPayment ?? '',
-        ...v.scopeOfWork,
-        ...v.subSow,
-        v.supplyChainClassification ?? '',
-        v.internalNote ?? '',
-        v.vendorAddress ?? '',
-        v.picWebsite ?? '',
-        v.isVerified ? 'verified' : 'belum verified',
-        v.isActive ? 'aktif' : 'nonaktif',
-        for (final p in v.contacts) ...[p.picName, p.position, p.contact, p.email],
-        for (final p in v.products) p.productName,
-      ];
-      return fields.any((f) => f.toLowerCase().contains(q));
-    }).toList();
+    final provider = context.read<VendorProvider>();
+    return vendors
+        .where((x) => SearchIndex.matches(provider.searchTextOf(x.id), q))
+        .toList();
   }
 
   @override
@@ -500,7 +485,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
         controller: _searchCtrl,
         onChanged: (v) => setState(() => _searchQuery = v),
         decoration: InputDecoration(
-          hintText: 'Cari nama / kode vendor...',
+          hintText: 'Cari di semua data vendor...',
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: _searchQuery.isEmpty
               ? null

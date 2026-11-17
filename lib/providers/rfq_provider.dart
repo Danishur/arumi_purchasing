@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/rfq.dart';
 import '../models/rfq_material.dart';
 import '../services/database_service.dart';
+import '../utils/search_index.dart';
 
 class RfqProvider extends ChangeNotifier {
   List<Rfq> _rfqs = [];
@@ -13,9 +14,33 @@ class RfqProvider extends ChangeNotifier {
   /// benar-benar buka form edit RFQ tertentu.
   Future<void> loadRfqs() async {
     final data = await DatabaseService.instance.getRfqs();
-    _rfqs = data.map((e) => Rfq.fromMap(e)).toList();
+    // Global Search: semua baris Material List RFQ dimuat sekaligus (1
+    // query) khusus untuk membangun index.
+    var lineRows = <Map<String, dynamic>>[];
+    try {
+      lineRows = await DatabaseService.instance.getAllRfqMaterialLines();
+    } catch (_) {}
+    final byRfq = SearchIndex.groupBy(lineRows, 'rfq_id');
+    _searchIndex = {};
+    _rfqs = data.map((e) {
+      final r = Rfq.fromMap(e);
+      final id = r.id;
+      if (id != null) {
+        _searchIndex[id] = SearchIndex.build(
+          e,
+          children: byRfq[id] ?? const [],
+          extra: [r.rfqCode],
+        );
+      }
+      return r;
+    }).toList();
     notifyListeners();
   }
+
+  Map<int, String> _searchIndex = {};
+
+  /// Teks index Global Search untuk 1 RFQ (semua kolom + customer + material).
+  String searchTextOf(int? id) => id == null ? '' : (_searchIndex[id] ?? '');
 
   Future<List<RfqMaterialLine>> getMaterialLinesForRfq(int rfqId) async {
     final data = await DatabaseService.instance.getRfqMaterialsByRfqId(rfqId);

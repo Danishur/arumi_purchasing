@@ -2,31 +2,46 @@ import 'package:intl/intl.dart';
 import '../models/customer.dart';
 import '../models/customer_contact.dart';
 import 'export_helpers.dart';
+import '../services/database_service.dart';
+import 'full_export.dart';
+import 'search_index.dart';
 
 /// TAMBAHAN: Export Excel Rekap (dari mode select di Customer List) &
 /// Export PDF (dari Customer Detail).
 class CustomerExport {
+  /// REVISI: Export Excel Rekap sekarang memuat SELURUH data customer --
+  /// semua kolom tabel `customers` (termasuk created_at/updated_at kalau
+  /// ada) + semua PIC/kontak (1 PIC = 1 baris di dalam sel, urutan sama
+  /// di semua kolom PIC).
   static Future<String?> exportExcelRekap(List<Customer> customers) async {
-    final rows = customers
-        .map((c) => [
-              c.customerCode,
-              c.name,
-              c.npwpNumber ?? '-',
-              c.termsOfPayment ?? '-',
-              c.customerType ?? '-',
-              c.address ?? '-',
-              c.isActive ? 'Aktif' : 'Nonaktif',
-            ])
-        .toList();
+    final ids = customers.map((c) => c.id).whereType<int>().toSet();
+    final db = DatabaseService.instance;
+    final parents = (await db.getCustomers()).where((r) => ids.contains(r['id'])).toList();
+    final contacts = SearchIndex.groupBy(await db.getAllChildRows('customer_contacts'), 'customer_id');
 
     final fileName = customers.length == 1
         ? '${customers.first.customerCode}_rekap.xlsx'
         : 'Customer_Rekap_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
 
-    return ExportHelpers.saveExcelRekap(
-      title: '',
-      headers: ['Customer ID', 'Nama', 'NPWP', 'Terms of Payment', 'Tipe', 'Alamat', 'Status'],
-      rows: rows,
+    return FullExport.saveWithChildren(
+      parents: parents,
+      codeHeader: 'Customer ID',
+      codeOf: (id) => 'C$id',
+      children: [
+        ChildSection(
+          label: 'PIC',
+          rowsByParent: contacts,
+          skip: const {'id', 'customer_id'},
+        ),
+      ],
+      firstKeys: const [
+        'customer_name',
+        'npwp',
+        'terms_of_payment',
+        'customer_type',
+        'address',
+        'status',
+      ],
       fileName: fileName,
       sheetName: 'Customer Rekap',
     );

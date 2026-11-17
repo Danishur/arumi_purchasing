@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/customer.dart';
 import '../providers/customer_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/search_index.dart';
 import '../utils/customer_export.dart';
 import 'customer_detail_screen.dart';
 import 'customer_form_screen.dart';
@@ -30,30 +31,16 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  // REVISI: search sekarang mencakup SEMUA field data customer (bukan
-  // cuma nama/kode/tipe) -- termasuk alamat, NPWP, terms of payment,
-  // status aktif, dan data PIC/kontak-nya.
+  // REVISI (Global Search): mencari ke SEMUA field data -- teks index
+  // dibangun provider dari seluruh kolom tabel + data relasi (PIC, bank,
+  // produk/brand, diskon, material RFQ, dst), lihat SearchIndex.
   List<Customer> _filtered(List<Customer> customers) {
-    final q = _searchQuery.trim().toLowerCase();
+    final q = _searchQuery.trim();
     if (q.isEmpty) return customers;
-    return customers.where((c) {
-      final fields = <String>[
-        c.name,
-        c.customerCode,
-        c.npwpNumber ?? '',
-        c.termsOfPayment ?? '',
-        c.customerType ?? '',
-        c.address ?? '',
-        c.isActive ? 'aktif' : 'nonaktif',
-        for (final p in c.contacts) ...[
-          p.picName,
-          p.position,
-          p.contact,
-          p.email,
-        ],
-      ];
-      return fields.any((f) => f.toLowerCase().contains(q));
-    }).toList();
+    final provider = context.read<CustomerProvider>();
+    return customers
+        .where((x) => SearchIndex.matches(provider.searchTextOf(x.id), q))
+        .toList();
   }
 
   @override
@@ -488,7 +475,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         controller: _searchCtrl,
         onChanged: (v) => setState(() => _searchQuery = v),
         decoration: InputDecoration(
-          hintText: 'Cari nama / kode customer...',
+          hintText: 'Cari di semua data customer...',
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: _searchQuery.isEmpty
               ? null

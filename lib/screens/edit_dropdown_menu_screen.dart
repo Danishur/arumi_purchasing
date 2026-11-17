@@ -31,7 +31,7 @@ class EditDropdownMenuScreen extends StatelessWidget {
       DropdownFieldConfig('scope_of_work', 'Scope of Work'),
       DropdownFieldConfig('sub_sow', 'Sub SOW'),
       DropdownFieldConfig('material_category', 'Category'),
-      DropdownFieldConfig('material_documents', 'Documents'),
+      DropdownFieldConfig('material_documents', 'Document Available'),
     ],
     'RFQ': [
       DropdownFieldConfig('material_documents', 'Document Requirement'),

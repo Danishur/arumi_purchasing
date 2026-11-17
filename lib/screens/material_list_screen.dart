@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/material_item.dart';
 import '../providers/material_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/search_index.dart';
 import '../utils/material_export.dart';
 import 'material_detail_screen.dart';
 import 'material_form_screen.dart';
@@ -27,38 +28,16 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  // REVISI: search sekarang mencakup SEMUA field data material.
+  // REVISI (Global Search): mencari ke SEMUA field data -- teks index
+  // dibangun provider dari seluruh kolom tabel + data relasi (PIC, bank,
+  // produk/brand, diskon, material RFQ, dst), lihat SearchIndex.
   List<MaterialItem> _filtered(List<MaterialItem> materials) {
-    final q = _searchQuery.trim().toLowerCase();
+    final q = _searchQuery.trim();
     if (q.isEmpty) return materials;
-    return materials.where((m) {
-      final fields = <String>[
-        m.itemDescription ?? '',
-        m.materialCode,
-        m.itemPartNumber ?? '',
-        m.vendorName ?? '',
-        m.scopeOfWork ?? '',
-        m.subSow ?? '',
-        m.brandUnitInstalledOn ?? '',
-        m.typeUnitInstalledOn ?? '',
-        m.category ?? '',
-        m.itemManufacturer ?? '',
-        m.originCountry ?? '',
-        m.itemType ?? '',
-        m.size ?? '',
-        m.referenceGenuinePartNumber ?? '',
-        m.existingItemDescription ?? '',
-        m.priceQuoteCurrency,
-        m.deliveryTerms ?? '',
-        m.deliveryAddress ?? '',
-        m.dimUnit ?? '',
-        m.weightUnit ?? '',
-        ...m.documents,
-        m.isActive ? 'aktif' : 'nonaktif',
-        m.isTransaction ? 'y' : 'n',
-      ];
-      return fields.any((f) => f.toLowerCase().contains(q));
-    }).toList();
+    final provider = context.read<MaterialProvider>();
+    return materials
+        .where((x) => SearchIndex.matches(provider.searchTextOf(x.id), q))
+        .toList();
   }
 
   @override
@@ -504,7 +483,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
         controller: _searchCtrl,
         onChanged: (v) => setState(() => _searchQuery = v),
         decoration: InputDecoration(
-          hintText: 'Cari nama / kode material...',
+          hintText: 'Cari di semua data material...',
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: _searchQuery.isEmpty
               ? null

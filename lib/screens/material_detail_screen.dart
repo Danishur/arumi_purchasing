@@ -233,7 +233,7 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
                     ),
 
                     _sectionTitle('Other'),
-                    _field('Documents', _material.documents.isEmpty ? null : _material.documents.join(', ')),
+                    _field('Document Available', _material.documents.isEmpty ? null : _material.documents.join(', ')),
                     _field('Updated data', _formatDateTime(_material.updatedAt)),
 
                     const SizedBox(height: 8),

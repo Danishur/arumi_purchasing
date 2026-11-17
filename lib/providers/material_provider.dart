@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/material_discount.dart';
 import '../models/material_item.dart';
 import '../services/database_service.dart';
+import '../utils/search_index.dart';
 
 class MaterialProvider extends ChangeNotifier {
   List<MaterialItem> _materials = [];
@@ -13,9 +14,33 @@ class MaterialProvider extends ChangeNotifier {
   /// benar-benar buka form edit material tertentu.
   Future<void> loadMaterials() async {
     final data = await DatabaseService.instance.getMaterials();
-    _materials = data.map((e) => MaterialItem.fromMap(e)).toList();
+    // Global Search: semua baris diskon dimuat sekaligus (1 query) khusus
+    // untuk membangun index.
+    var discountRows = <Map<String, dynamic>>[];
+    try {
+      discountRows = await DatabaseService.instance.getAllChildRows('material_discounts');
+    } catch (_) {}
+    final byMaterial = SearchIndex.groupBy(discountRows, 'material_id');
+    _searchIndex = {};
+    _materials = data.map((e) {
+      final m = MaterialItem.fromMap(e);
+      final id = m.id;
+      if (id != null) {
+        _searchIndex[id] = SearchIndex.build(
+          e,
+          children: byMaterial[id] ?? const [],
+          extra: [m.materialCode, m.isActive ? 'aktif' : 'nonaktif'],
+        );
+      }
+      return m;
+    }).toList();
     notifyListeners();
   }
+
+  Map<int, String> _searchIndex = {};
+
+  /// Teks index Global Search untuk 1 material (semua kolom + diskon + vendor).
+  String searchTextOf(int? id) => id == null ? '' : (_searchIndex[id] ?? '');
 
   Future<List<MaterialDiscount>> getDiscountsForMaterial(int materialId) async {
     final data = await DatabaseService.instance.getDiscountsByMaterialId(materialId);

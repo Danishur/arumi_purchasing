@@ -5,6 +5,7 @@ import '../models/rfq.dart';
 import '../models/rfq_material.dart';
 import '../providers/rfq_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/search_index.dart';
 import '../utils/rfq_excel_exporter.dart';
 import 'rfq_detail_screen.dart';
 import 'rfq_form_screen.dart';
@@ -29,27 +30,16 @@ class _RfqListScreenState extends State<RfqListScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  // REVISI: search sekarang mencakup SEMUA field data RFQ.
+  // REVISI (Global Search): mencari ke SEMUA field data -- teks index
+  // dibangun provider dari seluruh kolom tabel + data relasi (PIC, bank,
+  // produk/brand, diskon, material RFQ, dst), lihat SearchIndex.
   List<Rfq> _filtered(List<Rfq> rfqs) {
-    final q = _searchQuery.trim().toLowerCase();
+    final q = _searchQuery.trim();
     if (q.isEmpty) return rfqs;
-    return rfqs.where((r) {
-      final fields = <String>[
-        r.rfqCode,
-        r.reference ?? '',
-        r.customerName ?? '',
-        r.pic ?? '',
-        r.internalNote ?? '',
-        r.status ?? '',
-        ...r.documentRequirement,
-        for (final line in r.materialLines) ...[
-          line.itemDescription ?? '',
-          line.vendorName ?? '',
-          line.unit ?? '',
-        ],
-      ];
-      return fields.any((f) => f.toLowerCase().contains(q));
-    }).toList();
+    final provider = context.read<RfqProvider>();
+    return rfqs
+        .where((x) => SearchIndex.matches(provider.searchTextOf(x.id), q))
+        .toList();
   }
 
   @override
@@ -513,7 +503,7 @@ class _RfqListScreenState extends State<RfqListScreen> {
         controller: _searchCtrl,
         onChanged: (v) => setState(() => _searchQuery = v),
         decoration: InputDecoration(
-          hintText: 'Cari RFQ Number / Reference / Customer / PIC...',
+          hintText: 'Cari di semua data RFQ...',
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: _searchQuery.isEmpty
               ? null

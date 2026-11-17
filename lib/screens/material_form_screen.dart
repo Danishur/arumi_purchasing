@@ -358,7 +358,7 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
   Future<void> _pickDocuments() async {
     final result = await showMultiOptionPickerDialog(
       context: context,
-      title: 'Documents',
+      title: 'Document Available',
       options: MaterialOptions.documents,
       selectedValues: _documents,
       withSearch: true,
@@ -811,8 +811,8 @@ class _MaterialFormScreenState extends State<MaterialFormScreen> {
                   _sectionTitle('Other'),
 
                   // 30. Documents
-                  _label('Documents'),
-                  _multiPickerBox(values: _documents, hint: '-- Pilih Documents --', onTap: _pickDocuments),
+                  _label('Document Available'),
+                  _multiPickerBox(values: _documents, hint: '-- Pilih Document Available --', onTap: _pickDocuments),
                   const SizedBox(height: 16),
 
                   // 31. Transaction

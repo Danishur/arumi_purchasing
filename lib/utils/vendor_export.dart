@@ -4,41 +4,49 @@ import '../models/vendor_bank_account.dart';
 import '../models/vendor_contact.dart';
 import '../models/vendor_product.dart';
 import 'export_helpers.dart';
+import '../services/database_service.dart';
+import 'full_export.dart';
+import 'search_index.dart';
 
 /// TAMBAHAN: Export Excel Rekap (dari mode select di Vendor List) &
 /// Export PDF (dari Vendor Detail).
 class VendorExport {
+  /// REVISI: Export Excel Rekap sekarang memuat SELURUH data vendor --
+  /// semua kolom tabel `vendors` (termasuk created_at/updated_at kalau
+  /// ada) + semua PIC, Produk/Brand & Bank Information (1 item = 1 baris
+  /// di dalam sel, urutan sama di semua kolom relasi yang sama).
   static Future<String?> exportExcelRekap(List<Vendor> vendors) async {
-    final rows = vendors
-        .map((v) => [
-              v.vendorCode,
-              v.vendorName,
-              v.legalStanding ?? '-',
-              v.npwp ?? '-',
-              v.isVerified ? 'Verified' : 'Unverified',
-              v.termsOfPayment ?? '-',
-              v.supplyChainClassification ?? '-',
-              v.isActive ? 'Aktif' : 'Nonaktif',
-            ])
-        .toList();
+    final ids = vendors.map((v) => v.id).whereType<int>().toSet();
+    final db = DatabaseService.instance;
+    final parents = (await db.getVendors()).where((r) => ids.contains(r['id'])).toList();
+    final contacts = SearchIndex.groupBy(await db.getAllChildRows('vendor_contacts'), 'vendor_id');
+    final products = SearchIndex.groupBy(await db.getAllChildRows('vendor_products'), 'vendor_id');
+    final banks = SearchIndex.groupBy(await db.getAllChildRows('vendor_bank_accounts'), 'vendor_id');
 
     final fileName = vendors.length == 1
         ? '${vendors.first.vendorCode}_rekap.xlsx'
         : 'Vendor_Rekap_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
 
-    return ExportHelpers.saveExcelRekap(
-      title: '',
-      headers: [
-        'Vendor ID',
-        'Nama',
-        'Legal Standing',
-        'NPWP',
-        'Verified',
-        'Terms of Payment',
-        'Supply Chain Classification',
-        'Status',
+    const skip = {'id', 'vendor_id'};
+    return FullExport.saveWithChildren(
+      parents: parents,
+      codeHeader: 'Vendor ID',
+      codeOf: (id) => 'V$id',
+      children: [
+        ChildSection(label: 'PIC', rowsByParent: contacts, skip: skip),
+        ChildSection(label: 'Produk/Brand', rowsByParent: products, skip: skip),
+        ChildSection(label: 'Bank', rowsByParent: banks, skip: skip),
       ],
-      rows: rows,
+      firstKeys: const [
+        'vendor_name',
+        'legal_standing',
+        'npwp',
+        'is_verified',
+        'terms_of_payment',
+        'scope_of_work',
+        'sub_sow',
+        'supply_chain_classification',
+      ],
       fileName: fileName,
       sheetName: 'Vendor Rekap',
     );

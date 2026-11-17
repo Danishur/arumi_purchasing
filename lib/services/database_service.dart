@@ -725,6 +725,59 @@ class DatabaseService {
     await conn.query('DELETE FROM currency_rates WHERE id = ?', [id]);
   }
 
+  // ==================== BULK (Global Search & Export Excel Penuh) ====================
+  //
+  // Ambil SEMUA baris dari tabel relasi sekaligus (1 query per tabel,
+  // bukan 1 query per record) supaya Global Search & Export Excel bisa
+  // mencakup seluruh data PIC/Produk/Bank/Diskon/Material RFQ tanpa
+  // bikin layar list lambat. `SELECT *` -> kolom apa pun yang ada di
+  // tabel ikut terbawa.
+
+  static const _bulkChildTables = {
+    'customer_contacts',
+    'vendor_contacts',
+    'vendor_products',
+    'vendor_bank_accounts',
+    'material_discounts',
+  };
+
+  Future<List<Map<String, dynamic>>> getAllChildRows(String table) async {
+    if (!_bulkChildTables.contains(table)) {
+      throw ArgumentError('Tabel tidak diizinkan: $table');
+    }
+    final conn = await _conn;
+    final results = await conn.query('SELECT * FROM $table ORDER BY id ASC');
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// Semua baris rfq_materials (semua RFQ) lengkap dengan JOIN yang sama
+  /// seperti [getRfqMaterialsByRfqId].
+  Future<List<Map<String, dynamic>>> getAllRfqMaterialLines() async {
+    final conn = await _conn;
+    final results = await conn.query('''
+      SELECT rm.*,
+             m.item_description AS item_description,
+             m.total_price AS material_total_price,
+             m.vat AS material_vat,
+             m.delivery_terms AS delivery_terms,
+             m.weight AS weight,
+             m.weight_unit AS weight_unit,
+             m.dim_p AS dim_p,
+             m.dim_l AS dim_l,
+             m.dim_t AS dim_t,
+             m.dim_unit AS dim_unit,
+             m.documents AS documents,
+             v.id AS vendor_id,
+             v.vendor_name AS vendor_name,
+             v.terms_of_payment AS terms_of_payment
+      FROM rfq_materials rm
+      LEFT JOIN materials m ON m.id = rm.material_id
+      LEFT JOIN vendors v ON v.id = m.vendor_id
+      ORDER BY rm.id ASC
+    ''');
+    return results.map((row) => _convertRow(row.fields)).toList();
+  }
+
   // ==================== DROPDOWN OPTIONS (Settings > Edit Dropdown) ====================
   //
   // TAMBAHAN: dulu isi semua dropdown (Terms of Payment, Legal Standing,

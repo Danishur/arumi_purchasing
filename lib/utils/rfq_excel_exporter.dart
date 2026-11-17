@@ -4,6 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/rfq.dart';
 import '../models/rfq_material.dart';
+import '../services/database_service.dart';
+import 'full_export.dart';
+import 'search_index.dart';
 
 /// Hasil export: path file kalau berhasil disimpan, null kalau user
 /// membatalkan dialog simpan file.
@@ -81,9 +84,11 @@ class RfqExcelExporter {
     setCell(1, 5, rfq.dueDate == null ? '-' : _dateFmt.format(rfq.dueDate!));
     setCell(0, 6, 'Status', style: bold);
     setCell(1, 6, rfq.status ?? '-');
+    setCell(0, 7, 'Update Data', style: bold);
+    setCell(1, 7, rfq.updatedAt == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(rfq.updatedAt!));
 
     // --- Tabel Material List (format baru, lebih lengkap) ---
-    const tableHeaderRow = 8;
+    const tableHeaderRow = 9;
     const headers = [
       'No',
       'Kode Vendor',
@@ -155,95 +160,98 @@ class RfqExcelExporter {
 
   /// "Export Excel Rekap" -- gabungan beberapa RFQ terpilih jadi 1
   /// file, 1 baris per Material per RFQ (RFQ tanpa Material tetap
-  /// muncul 1 baris kosong di kolom Material-nya).
+  /// muncul 1 baris dengan kolom Material kosong).
+  ///
+  /// REVISI: sekarang memuat SELURUH data -- semua kolom tabel `rfqs`
+  /// (customer, reference, PIC, tanggal, Document Requirement, Internal
+  /// Note, Status, created_at/updated_at kalau ada) + semua kolom baris
+  /// Material List (qty, unit, harga satuan, vendor, TOP, VAT, delivery,
+  /// berat, dimensi, Document Available, ...) + Subtotal & baris Total.
+  /// Parameter [linesByRfq] dipertahankan supaya pemanggil lama tetap
+  /// jalan, tapi data diambil langsung dari database.
   static Future<String?> exportRecap(
     List<Rfq> rfqs,
     Map<int, List<RfqMaterialLine>> linesByRfq,
   ) async {
-    final excel = Excel.createExcel();
-    const sheetName = 'RFQ Rekap';
-    final sheet = excel[sheetName];
-    if (excel.sheets.containsKey('Sheet1')) {
-      excel.delete('Sheet1');
-    }
+    final ids = rfqs.map((r) => r.id).whereType<int>().toSet();
+    final db = DatabaseService.instance;
+    final parents = (await db.getRfqs()).where((r) => ids.contains(r['id'])).toList();
+    final lineGroups = SearchIndex.groupBy(await db.getAllRfqMaterialLines(), 'rfq_id');
 
-    final bold = CellStyle(bold: true);
-    void setCell(int col, int row, dynamic value, {CellStyle? style}) =>
-        _setCell(sheet, col, row, value, style: style);
+    const headParent = ['customer_name', 'reference', 'pic', 'date_request', 'due_date'];
+    const headLine = ['item_description', 'quantity', 'unit'];
 
-    setCell(0, 0, 'EXPORT RFQ REKAP', style: CellStyle(bold: true, fontSize: 16));
-
-    const headers = [
-      'RFQ Number',
-      'Customer',
-      'Reference',
-      'PIC',
-      'Date Request',
-      'Due Date',
-      'Material',
-      'Qty',
-      'Unit',
-      'Nilai',
-      'Internal Note',
-      'Update Data',
-      'Status',
+    final parentKeys = FullExport.orderedKeys(parents, first: headParent);
+    final allLines = <Map<String, dynamic>>[
+      for (final p in parents) ...(lineGroups[p['id']] ?? const []),
     ];
-    const headerRow = 2;
-    for (var i = 0; i < headers.length; i++) {
-      setCell(i, headerRow, headers[i], style: bold);
-    }
+    final lineKeys = FullExport.orderedKeys(
+      allLines,
+      first: headLine,
+      skip: const {'id', 'rfq_id'},
+    );
 
-    var row = headerRow + 1;
+    final firstParent = parentKeys.where(headParent.contains).toList();
+    final restParent = parentKeys.where((k) => !headParent.contains(k)).toList();
+    final firstLine = lineKeys.where(headLine.contains).toList();
+    final restLine = lineKeys.where((k) => !headLine.contains(k)).toList();
+
+    final headers = <String>[
+      'RFQ Number',
+      ...firstParent.map(FullExport.headerOf),
+      ...firstLine.map(FullExport.headerOf),
+      'Nilai (Subtotal)',
+      ...restParent.map(FullExport.headerOf),
+      ...restLine.map(FullExport.headerOf),
+    ];
+
+    final rows = <List<dynamic>>[];
     double grandTotal = 0;
-    for (final rfq in rfqs) {
-      final lines = linesByRfq[rfq.id] ?? const <RfqMaterialLine>[];
-      if (lines.isEmpty) {
-        setCell(0, row, rfq.rfqCode);
-        setCell(1, row, rfq.customerName ?? '-');
-        setCell(2, row, rfq.reference ?? '-');
-        setCell(3, row, rfq.pic ?? '-');
-        setCell(4, row, rfq.dateRequest == null ? '-' : _dateFmt.format(rfq.dateRequest!));
-        setCell(5, row, rfq.dueDate == null ? '-' : _dateFmt.format(rfq.dueDate!));
-        setCell(6, row, '-');
-        setCell(7, row, '-');
-        setCell(8, row, '-');
-        setCell(9, row, '-');
-        setCell(10, row, rfq.internalNote ?? '-');
-        setCell(11, row, rfq.updatedAt == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(rfq.updatedAt!));
-        setCell(12, row, rfq.status ?? '-');
-        row++;
-        continue;
-      }
-      for (final line in lines) {
-        setCell(0, row, rfq.rfqCode);
-        setCell(1, row, rfq.customerName ?? '-');
-        setCell(2, row, rfq.reference ?? '-');
-        setCell(3, row, rfq.pic ?? '-');
-        setCell(4, row, rfq.dateRequest == null ? '-' : _dateFmt.format(rfq.dateRequest!));
-        setCell(5, row, rfq.dueDate == null ? '-' : _dateFmt.format(rfq.dueDate!));
-        setCell(6, row, line.itemDescription ?? line.materialCode ?? 'MATL${line.materialId}');
-        setCell(7, row, line.quantity);
-        setCell(8, row, line.unit ?? '-');
-        setCell(9, row, line.subtotal);
-        setCell(10, row, rfq.internalNote ?? '-');
-        setCell(11, row, rfq.updatedAt == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(rfq.updatedAt!));
-        setCell(12, row, rfq.status ?? '-');
-        grandTotal += line.subtotal;
-        row++;
+    for (final p in parents) {
+      final id = p['id'];
+      final lines = lineGroups[id] ?? const <Map<String, dynamic>>[];
+      final code = id is int ? 'RFQ$id' : '-';
+      final items = lines.isEmpty ? <Map<String, dynamic>?>[null] : lines;
+      for (final line in items) {
+        double subtotal = 0;
+        if (line != null) {
+          final q = line['quantity'];
+          final pr = line['material_total_price'];
+          final qn = q is num ? q.toDouble() : double.tryParse('$q') ?? 0;
+          final pn = pr is num ? pr.toDouble() : double.tryParse('$pr') ?? 0;
+          subtotal = qn * pn;
+          grandTotal += subtotal;
+        }
+        rows.add([
+          code,
+          for (final k in firstParent) FullExport.cell(k, p[k]),
+          for (final k in firstLine) line == null ? '-' : FullExport.cell(k, line[k]),
+          line == null ? '-' : subtotal,
+          for (final k in restParent) FullExport.cell(k, p[k]),
+          for (final k in restLine) line == null ? '-' : FullExport.cell(k, line[k]),
+        ]);
       }
     }
 
-    row++;
-    setCell(8, row, 'Total', style: bold);
-    setCell(9, row, grandTotal, style: bold);
-
-    for (var i = 0; i < headers.length; i++) {
-      sheet.setColumnWidth(i, i == 6 || i == 10 ? 28 : 16);
+    // Baris Total di kolom "Nilai (Subtotal)".
+    final totalRow = List<dynamic>.filled(headers.length, '');
+    final nilaiIdx = headers.indexOf('Nilai (Subtotal)');
+    if (nilaiIdx > 0) {
+      totalRow[nilaiIdx - 1] = 'Total';
+      totalRow[nilaiIdx] = grandTotal;
     }
+    rows.add(totalRow);
 
     final fileName = rfqs.length == 1
         ? '${rfqs.first.rfqCode}_rekap.xlsx'
         : 'RFQ_Rekap_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
-    return _saveDialog(excel, fileName);
+
+    return FullExport.write(
+      headers: headers,
+      rows: rows,
+      fileName: fileName,
+      sheetName: 'RFQ Rekap',
+      boldLastRow: true,
+    );
   }
 }
