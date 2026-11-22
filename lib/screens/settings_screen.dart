@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import 'currency_screen.dart';
 import 'edit_dropdown_menu_screen.dart';
+import 'update_db_screen.dart';
 
-/// Layar Settings -- dibuka dari Home. Isinya 2 menu sesuai sketsa:
-/// "Edit Dropdown" dan "Update Valuta" (keduanya sudah aktif).
+/// Layar Settings -- dibuka dari Home. Isinya 3 menu: "Edit Dropdown",
+/// "Update Valuta", dan "Update DB" (import data lama dari Excel).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -39,6 +40,17 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CurrencyScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _menuCard(
+            context,
+            icon: Icons.upload_file,
+            title: 'Update DB',
+            subtitle: 'Import data lama dari file Excel',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const UpdateDbScreen()),
             ),
           ),
         ],
