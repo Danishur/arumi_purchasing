@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:excel/excel.dart' as xl;
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
@@ -94,7 +96,7 @@ class ImportExcelIo {
   /// Baca sheet pertama yang cocok (prioritas sheet "Data", kalau tidak
   /// ada pakai sheet pertama) menjadi [ParsedSheet] untuk [module].
   static ParsedSheet parse(List<int> bytes, ImportModule module) {
-    final excel = xl.Excel.decodeBytes(bytes);
+    final excel = xl.Excel.decodeBytes(_fixStyles(bytes));
     if (excel.tables.isEmpty) throw Exception('File Excel kosong.');
 
     String sheetName = excel.tables.keys.first;
@@ -161,6 +163,41 @@ class ImportExcelIo {
       nums.add(i + 1);
     }
     return ParsedSheet(rows: rows, rowNumbers: nums, missingRequiredColumns: missing, sheetName: sheetName);
+  }
+
+
+  /// Perbaikan untuk file hasil simpan Excel/WPS: package `excel` gagal
+  /// membaca file yang mendeklarasikan format angka bawaan (id < 164,
+  /// mis. 42 / 44 format akuntansi) di styles.xml dengan error "custom
+  /// numFmtId starts at 164". Format angka tidak berpengaruh ke isi
+  /// data, jadi deklarasi itu dibuang sebelum dibaca.
+  static List<int> _fixStyles(List<int> bytes) {
+    try {
+      final zip = ZipDecoder().decodeBytes(bytes);
+      final out = Archive();
+      var changed = false;
+      for (final f in zip.files) {
+        if (f.isFile && f.name == 'xl/styles.xml') {
+          final text = utf8.decode(f.content as List<int>);
+          var fixed = text.replaceAllMapped(
+            RegExp(r'<numFmt\s+numFmtId="(\d+)"[^>]*/>'),
+            (m) => int.parse(m.group(1)!) < 164 ? '' : m.group(0)!,
+          );
+          fixed = fixed.replaceAll(RegExp(r'numFmtId="4[1-4]"'), 'numFmtId="0"');
+          if (fixed != text) {
+            changed = true;
+            final data = utf8.encode(fixed);
+            out.addFile(ArchiveFile(f.name, data.length, data));
+            continue;
+          }
+        }
+        out.addFile(f);
+      }
+      if (!changed) return bytes;
+      return ZipEncoder().encode(out) ?? bytes;
+    } catch (_) {
+      return bytes;
+    }
   }
 
   /// Nilai sel jadi teks bersih. Tanggal -> yyyy-MM-dd, angka bulat tanpa

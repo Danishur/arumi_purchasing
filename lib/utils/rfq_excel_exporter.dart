@@ -54,7 +54,7 @@ class RfqExcelExporter {
 
   /// "Export Excel Satuan" -- 1 RFQ, detail lengkap per Material
   /// (REVISI: sekarang ikut nampilin Kode Vendor, Vendor, Terms of
-  /// Payment, VAT, Delivery, Berat, Dimensi, Dokumen -- sebelumnya cuma
+  /// Payment, VAT, Delivery, Berat, Dimensi, Document Requirement & Document Available -- sebelumnya cuma
   /// Material/Qty/Unit/Harga Satuan/Toko/Subtotal).
   static Future<String?> export(Rfq rfq, List<RfqMaterialLine> lines) async {
     final excel = Excel.createExcel();
@@ -107,7 +107,8 @@ class RfqExcelExporter {
       'Dimensi L',
       'Dimensi T',
       'Satuan Dimensi',
-      'Dokumen',
+      'Document Requirement',
+      'Document Available',
     ];
     for (var i = 0; i < headers.length; i++) {
       setCell(i, tableHeaderRow, headers[i], style: bold);
@@ -134,7 +135,11 @@ class RfqExcelExporter {
       setCell(14, row, line.dimL ?? '-');
       setCell(15, row, line.dimT ?? '-');
       setCell(16, row, line.dimUnit ?? '-');
-      setCell(17, row, line.documents.isEmpty ? '-' : line.documents.join(', '));
+      // REVISI: kolom "Dokumen" dipecah jadi 2 -- Document Requirement
+      // (dari RFQ, sama di semua baris) & Document Available (dari
+      // Material di baris itu).
+      setCell(17, row, rfq.documentRequirement.isEmpty ? '-' : rfq.documentRequirement.join(', '));
+      setCell(18, row, line.documents.isEmpty ? '-' : line.documents.join(', '));
       grandSubtotal += line.subtotal;
       row++;
     }
@@ -143,13 +148,10 @@ class RfqExcelExporter {
     setCell(7, row, 'Total', style: bold);
     setCell(8, row, grandSubtotal, style: bold);
 
-    // --- Internal Note & Document Requirement (kalau ada) ---
+    // --- Internal Note (kalau ada) ---
     row += 2;
     setCell(0, row, 'Internal Note', style: bold);
     setCell(1, row, rfq.internalNote ?? '-');
-    row++;
-    setCell(0, row, 'Document Requirement', style: bold);
-    setCell(1, row, rfq.documentRequirement.isEmpty ? '-' : rfq.documentRequirement.join(', '));
 
     for (var i = 0; i < headers.length; i++) {
       sheet.setColumnWidth(i, i == 4 ? 28 : 16);
