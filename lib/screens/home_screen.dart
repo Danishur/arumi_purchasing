@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 import '../utils/app_theme.dart';
 import 'customer_list_screen.dart';
+import 'login_screen.dart';
 import 'material_list_screen.dart';
 import 'rfq_list_screen.dart';
 import 'settings_screen.dart';
@@ -19,9 +22,29 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Purchasing Intermediary'),
+        title: const Text('Arumi Purchasing'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        actions: [
+          Center(
+            child: Text(
+              context.watch<AuthProvider>().name,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              context.read<AuthProvider>().logout();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (_) => false,
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -74,7 +97,7 @@ class HomeScreen extends StatelessWidget {
             context,
             icon: Icons.settings_outlined,
             title: 'Settings',
-            subtitle: 'Edit Dropdown & Update Valuta',
+            subtitle: 'Dropdown, Valuta, Update DB, & Management User',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SettingsScreen()),

@@ -41,3 +41,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Logo PT Arumi (splash, login, dan layar lain).
+  assets:
+    - assets/images/logo_arumi.png

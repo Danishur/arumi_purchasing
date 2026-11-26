@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import 'currency_screen.dart';
 import 'edit_dropdown_menu_screen.dart';
+import 'management_login_screen.dart';
 import 'update_db_screen.dart';
 
-/// Layar Settings -- dibuka dari Home. Isinya 3 menu: "Edit Dropdown",
-/// "Update Valuta", dan "Update DB" (import data lama dari Excel).
+/// Layar Settings -- dibuka dari Home. Isinya 4 menu: "Edit Dropdown",
+/// "Update Valuta", "Update DB" (import data lama dari Excel), dan
+/// "Management User" (khusus owner).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -51,6 +53,17 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const UpdateDbScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _menuCard(
+            context,
+            icon: Icons.groups_2_outlined,
+            title: 'Management User',
+            subtitle: 'Kelola akun, persetujuan user, dan riwayat (owner)',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ManagementLoginScreen()),
             ),
           ),
         ],

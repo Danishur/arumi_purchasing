@@ -1,5 +1,6 @@
 import 'package:mysql1/mysql1.dart';
 import 'dart:convert';
+import 'dart:math';
 import '../config/db_config.dart';
 
 /// Singleton untuk mengelola koneksi & query MySQL.
@@ -126,6 +127,7 @@ class DatabaseService {
       );
     }
 
+    await _log('create', 'Customer', _s(customerRow['name']));
     return customerId;
   }
 
@@ -137,6 +139,7 @@ class DatabaseService {
   ) async {
     final conn = await _conn;
     final id = customerRow['id'];
+    await _log('update', 'Customer', _s(customerRow['name']));
 
     await conn.query(
       '''UPDATE customers
@@ -168,7 +171,9 @@ class DatabaseService {
 
   Future<void> deleteCustomer(int id) async {
     final conn = await _conn;
+    final labels = await _labelsOf('customers', "customer_name", [id]);
     await conn.query('DELETE FROM customers WHERE id = ?', [id]);
+    await _logDeletes('Customer', labels);
   }
 
   /// Hapus banyak customer sekaligus (dipakai fitur select multi di
@@ -178,7 +183,9 @@ class DatabaseService {
     if (ids.isEmpty) return;
     final conn = await _conn;
     final placeholders = List.filled(ids.length, '?').join(', ');
+    final labels = await _labelsOf('customers', "customer_name", ids);
     await conn.query('DELETE FROM customers WHERE id IN ($placeholders)', ids);
+    await _logDeletes('Customer', labels);
   }
 
   // ==================== VENDOR ====================
@@ -283,6 +290,7 @@ class DatabaseService {
       );
     }
 
+    await _log('create', 'Vendor', _s(vendorRow['vendor_name']));
     return vendorId;
   }
 
@@ -297,6 +305,7 @@ class DatabaseService {
   ) async {
     final conn = await _conn;
     final id = vendorRow['id'];
+    await _log('update', 'Vendor', _s(vendorRow['vendor_name']));
 
     await conn.query(
       '''UPDATE vendors
@@ -359,7 +368,9 @@ class DatabaseService {
 
   Future<void> deleteVendor(int id) async {
     final conn = await _conn;
+    final labels = await _labelsOf('vendors', "vendor_name", [id]);
     await conn.query('DELETE FROM vendors WHERE id = ?', [id]);
+    await _logDeletes('Vendor', labels);
   }
 
   /// Hapus banyak vendor sekaligus (fitur select multi di layar list).
@@ -369,7 +380,9 @@ class DatabaseService {
     if (ids.isEmpty) return;
     final conn = await _conn;
     final placeholders = List.filled(ids.length, '?').join(', ');
+    final labels = await _labelsOf('vendors', "vendor_name", ids);
     await conn.query('DELETE FROM vendors WHERE id IN ($placeholders)', ids);
+    await _logDeletes('Vendor', labels);
   }
 
   // ==================== MATERIAL ====================
@@ -466,6 +479,7 @@ class DatabaseService {
       );
     }
 
+    await _log('create', 'Material', _s(materialRow['item_description']));
     return materialId;
   }
 
@@ -477,6 +491,7 @@ class DatabaseService {
   ) async {
     final conn = await _conn;
     final id = materialRow['id'];
+    await _log('update', 'Material', _s(materialRow['item_description']));
 
     await conn.query(
       '''UPDATE materials
@@ -544,7 +559,9 @@ class DatabaseService {
 
   Future<void> deleteMaterial(int id) async {
     final conn = await _conn;
+    final labels = await _labelsOf('materials', "item_description", [id]);
     await conn.query('DELETE FROM materials WHERE id = ?', [id]);
+    await _logDeletes('Material', labels);
   }
 
   /// Hapus banyak material sekaligus (fitur select multi di layar list).
@@ -554,7 +571,9 @@ class DatabaseService {
     if (ids.isEmpty) return;
     final conn = await _conn;
     final placeholders = List.filled(ids.length, '?').join(', ');
+    final labels = await _labelsOf('materials', "item_description", ids);
     await conn.query('DELETE FROM materials WHERE id IN ($placeholders)', ids);
+    await _logDeletes('Material', labels);
   }
 
   // ==================== RFQ ====================
@@ -638,6 +657,7 @@ class DatabaseService {
       );
     }
 
+    await _log('create', 'RFQ', _s(rfqRow['reference']).isEmpty ? 'RFQ #$rfqId' : _s(rfqRow['reference']));
     return rfqId;
   }
 
@@ -649,6 +669,7 @@ class DatabaseService {
   ) async {
     final conn = await _conn;
     final id = rfqRow['id'];
+    await _log('update', 'RFQ', _s(rfqRow['reference']).isEmpty ? 'RFQ #$id' : _s(rfqRow['reference']));
 
     await conn.query(
       '''UPDATE rfqs
@@ -679,7 +700,9 @@ class DatabaseService {
 
   Future<void> deleteRfq(int id) async {
     final conn = await _conn;
+    final labels = await _labelsOf('rfqs', "COALESCE(NULLIF(reference, ''), CONCAT('RFQ #', id))", [id]);
     await conn.query('DELETE FROM rfqs WHERE id = ?', [id]);
+    await _logDeletes('RFQ', labels);
   }
 
   /// Hapus banyak RFQ sekaligus (fitur select multi di layar list).
@@ -689,7 +712,9 @@ class DatabaseService {
     if (ids.isEmpty) return;
     final conn = await _conn;
     final placeholders = List.filled(ids.length, '?').join(', ');
+    final labels = await _labelsOf('rfqs', "COALESCE(NULLIF(reference, ''), CONCAT('RFQ #', id))", ids);
     await conn.query('DELETE FROM rfqs WHERE id IN ($placeholders)', ids);
+    await _logDeletes('RFQ', labels);
   }
 
   // ==================== CURRENCY (Settings > Update Valuta) ====================
@@ -709,6 +734,7 @@ class DatabaseService {
       'INSERT INTO currency_rates (currency_code, rate_to_idr, updated_at) VALUES (?, ?, NOW())',
       [currencyCode, rateToIdr],
     );
+    await _log('create', 'Valuta', '$currencyCode = $rateToIdr');
     return result.insertId!;
   }
 
@@ -718,11 +744,15 @@ class DatabaseService {
       'UPDATE currency_rates SET rate_to_idr = ?, updated_at = NOW() WHERE id = ?',
       [rateToIdr, id],
     );
+    final l = await _labelsOf('currency_rates', 'currency_code', [id]);
+    await _log('update', 'Valuta', '${l.isEmpty ? id : l.first} = $rateToIdr');
   }
 
   Future<void> deleteCurrencyRate(int id) async {
     final conn = await _conn;
+    final labels = await _labelsOf('currency_rates', 'currency_code', [id]);
     await conn.query('DELETE FROM currency_rates WHERE id = ?', [id]);
+    await _logDeletes('Valuta', labels);
   }
 
   // ==================== BULK (Global Search & Export Excel Penuh) ====================
@@ -815,16 +845,299 @@ class DatabaseService {
       'INSERT INTO dropdown_options (category, value) VALUES (?, ?)',
       [category, value],
     );
+    await _log('create', 'Dropdown', '$category: $value');
     return result.insertId!;
   }
 
   Future<void> updateDropdownOption(int id, String value) async {
     final conn = await _conn;
     await conn.query('UPDATE dropdown_options SET value = ? WHERE id = ?', [value, id]);
+    await _log('update', 'Dropdown', value);
   }
 
   Future<void> deleteDropdownOption(int id) async {
     final conn = await _conn;
+    final labels = await _labelsOf('dropdown_options', "CONCAT(category, ': ', value)", [id]);
     await conn.query('DELETE FROM dropdown_options WHERE id = ?', [id]);
+    await _logDeletes('Dropdown', labels);
   }
+
+  // ==================== USER LOGIN & APPROVAL + RIWAYAT AKTIVITAS ====================
+  //
+  // Dibuat otomatis oleh [ensureAuthTables] waktu app dibuka (tidak perlu
+  // menjalankan SQL manual; file sql/06_create_auth_tables.sql hanya
+  // cadangan kalau user MySQL tidak punya izin CREATE TABLE).
+
+  /// User yang sedang login -- diisi AuthProvider. Dipakai [_log] untuk
+  /// mencatat SIAPA yang menambah / mengubah / menghapus data.
+  static int? actorId;
+  static String actorName = '';
+
+  /// Akun owner bawaan (dibuat sekali kalau belum ada owner di tabel).
+  /// SEGERA diganti lewat Settings > Management User > Change Password.
+  static const String defaultOwnerEmail = 'owner@arumi.co.id';
+  static const String defaultOwnerPassword = 'Owner123!';
+
+  /// Riwayat aktivitas otomatis dihapus kalau umurnya lebih dari ini.
+  static const int historyRetentionMonths = 5;
+
+  static String _newSalt() {
+    final rnd = Random.secure();
+    return List.generate(16, (_) => rnd.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  static String _s(dynamic v) => (v ?? '').toString();
+
+  Future<void> ensureAuthTables() async {
+    final conn = await _conn;
+    await conn.query('''
+      CREATE TABLE IF NOT EXISTS app_users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        position VARCHAR(100) NULL,
+        id_number VARCHAR(100) NULL,
+        email VARCHAR(150) NOT NULL UNIQUE,
+        password_salt VARCHAR(64) NOT NULL,
+        password_hash VARCHAR(64) NOT NULL,
+        pending_salt VARCHAR(64) NULL,
+        pending_hash VARCHAR(64) NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        approved_at DATETIME NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''');
+    await conn.query('''
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NULL,
+        user_name VARCHAR(150) NULL,
+        action VARCHAR(20) NOT NULL,
+        module VARCHAR(40) NOT NULL,
+        record_label VARCHAR(255) NULL,
+        detail TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_activity_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''');
+
+    final owners = await conn.query("SELECT id FROM app_users WHERE role = 'owner' LIMIT 1");
+    if (owners.isEmpty) {
+      final salt = _newSalt();
+      await conn.query(
+        '''INSERT INTO app_users
+           (name, position, id_number, email, password_salt, password_hash, role, status, approved_at)
+           VALUES (?, ?, ?, ?, ?, SHA2(CONCAT(?, ?), 256), 'owner', 'active', NOW())''',
+        ['Owner', 'Owner', '-', defaultOwnerEmail, salt, salt, defaultOwnerPassword],
+      );
+    }
+    await purgeOldLogs();
+  }
+
+  /// Hapus riwayat yang sudah lewat [historyRetentionMonths] bulan.
+  Future<void> purgeOldLogs() async {
+    final conn = await _conn;
+    await conn.query(
+      'DELETE FROM activity_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? MONTH)',
+      [historyRetentionMonths],
+    );
+  }
+
+  /// Catat 1 aktivitas. Tidak pernah melempar error (pencatatan gagal
+  /// tidak boleh menggagalkan simpan data) dan dilewati kalau belum ada
+  /// user yang login.
+  Future<void> _log(String action, String module, String label, {String? detail}) async {
+    if (actorId == null) return;
+    try {
+      final conn = await _conn;
+      await conn.query(
+        '''INSERT INTO activity_logs (user_id, user_name, action, module, record_label, detail)
+           VALUES (?, ?, ?, ?, ?, ?)''',
+        [actorId, actorName, action, module, label, detail],
+      );
+    } catch (_) {}
+  }
+
+  Future<List<String>> _labelsOf(String table, String expr, List<int> ids) async {
+    if (ids.isEmpty) return [];
+    final conn = await _conn;
+    final ph = List.filled(ids.length, '?').join(', ');
+    final r = await conn.query('SELECT $expr AS label FROM $table WHERE id IN ($ph)', ids);
+    return r.map((row) => _s(_convertRow(row.fields)['label'])).toList();
+  }
+
+  Future<void> _logDeletes(String module, List<String> labels) async {
+    for (final l in labels) {
+      await _log('delete', module, l);
+    }
+  }
+
+  /// Daftar akun baru (status pending).
+  Future<void> registerUser({
+    required String name,
+    required String position,
+    required String idNumber,
+    required String email,
+    required String password,
+  }) async {
+    final conn = await _conn;
+    final salt = _newSalt();
+    final existing = await conn.query('SELECT id, status FROM app_users WHERE LOWER(email) = LOWER(?)', [email]);
+    if (existing.isNotEmpty) {
+      final row = _convertRow(existing.first.fields);
+      if (_s(row['status']) != 'rejected') {
+        throw AuthException('Email ini sudah terdaftar.');
+      }
+      await conn.query(
+        '''UPDATE app_users SET name = ?, position = ?, id_number = ?, password_salt = ?,
+           password_hash = SHA2(CONCAT(?, ?), 256), status = 'pending', created_at = NOW()
+           WHERE id = ?''',
+        [name, position, idNumber, salt, salt, password, row['id']],
+      );
+      return;
+    }
+    await conn.query(
+      '''INSERT INTO app_users (name, position, id_number, email, password_salt, password_hash, role, status)
+         VALUES (?, ?, ?, ?, ?, SHA2(CONCAT(?, ?), 256), 'user', 'pending')''',
+      [name, position, idNumber, email, salt, salt, password],
+    );
+  }
+
+  /// Cek login. Mengembalikan data user, atau melempar [AuthException]
+  /// dengan pesan yang siap ditampilkan.
+  Future<Map<String, dynamic>> loginUser(String email, String password) async {
+    final conn = await _conn;
+    final found = await conn.query(
+      '''SELECT id, name, position, id_number, email, role, status,
+                (password_hash = SHA2(CONCAT(password_salt, ?), 256)) AS ok
+         FROM app_users WHERE LOWER(email) = LOWER(?) LIMIT 1''',
+      [password, email],
+    );
+    if (found.isEmpty) throw AuthException('User / email atau password salah.');
+    final row = _convertRow(found.first.fields);
+    final ok = row['ok'];
+    if (!(ok == 1 || ok == true)) throw AuthException('User / email atau password salah.');
+    final status = _s(row['status']);
+    if (status == 'pending') {
+      throw AuthException('Akun kamu masih menunggu persetujuan owner.');
+    }
+    if (status == 'rejected') {
+      throw AuthException('Pendaftaran akun kamu ditolak owner.');
+    }
+    row.remove('ok');
+    return row;
+  }
+
+  Future<List<Map<String, dynamic>>> getActiveUsers() async {
+    final conn = await _conn;
+    final r = await conn.query(
+      "SELECT id, name, position, email, role, status FROM app_users WHERE status = 'active' ORDER BY id ASC",
+    );
+    return r.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  /// Akun baru yang belum disetujui + permintaan reset password.
+  /// Kolom `request_type`: 'register' atau 'reset'.
+  Future<List<Map<String, dynamic>>> getPendingRequests() async {
+    final conn = await _conn;
+    final r = await conn.query('''
+      SELECT id, name, position, email,
+             IF(status = 'pending', 'register', 'reset') AS request_type
+      FROM app_users
+      WHERE status = 'pending' OR pending_hash IS NOT NULL
+      ORDER BY id ASC
+    ''');
+    return r.map((row) => _convertRow(row.fields)).toList();
+  }
+
+  Future<void> approveUser(int id) async {
+    final conn = await _conn;
+    final label = await _labelsOf('app_users', 'email', [id]);
+    await conn.query("UPDATE app_users SET status = 'active', approved_at = NOW() WHERE id = ?", [id]);
+    await _log('update', 'User', label.isEmpty ? '#$id' : label.first, detail: 'Akun disetujui');
+  }
+
+  Future<void> rejectUser(int id) async {
+    final conn = await _conn;
+    final label = await _labelsOf('app_users', 'email', [id]);
+    await conn.query("UPDATE app_users SET status = 'rejected' WHERE id = ?", [id]);
+    await _log('update', 'User', label.isEmpty ? '#$id' : label.first, detail: 'Akun ditolak');
+  }
+
+  /// Permintaan ganti password dari layar "Lupa password" -- baru
+  /// berlaku setelah owner menyetujui (lihat [approveReset]).
+  Future<void> requestPasswordReset(String email, String newPassword) async {
+    final conn = await _conn;
+    final r = await conn.query(
+      "SELECT id FROM app_users WHERE LOWER(email) = LOWER(?) AND status = 'active'",
+      [email],
+    );
+    if (r.isEmpty) throw AuthException('Email tidak ditemukan atau akun belum aktif.');
+    final salt = _newSalt();
+    await conn.query(
+      'UPDATE app_users SET pending_salt = ?, pending_hash = SHA2(CONCAT(?, ?), 256) WHERE LOWER(email) = LOWER(?)',
+      [salt, salt, newPassword, email],
+    );
+  }
+
+  Future<void> approveReset(int id) async {
+    final conn = await _conn;
+    final label = await _labelsOf('app_users', 'email', [id]);
+    await conn.query(
+      '''UPDATE app_users SET password_salt = pending_salt, password_hash = pending_hash,
+         pending_salt = NULL, pending_hash = NULL WHERE id = ? AND pending_hash IS NOT NULL''',
+      [id],
+    );
+    await _log('update', 'User', label.isEmpty ? '#$id' : label.first, detail: 'Reset password disetujui');
+  }
+
+  Future<void> rejectReset(int id) async {
+    final conn = await _conn;
+    final label = await _labelsOf('app_users', 'email', [id]);
+    await conn.query('UPDATE app_users SET pending_salt = NULL, pending_hash = NULL WHERE id = ?', [id]);
+    await _log('update', 'User', label.isEmpty ? '#$id' : label.first, detail: 'Reset password ditolak');
+  }
+
+  /// Owner mengganti password user langsung (Management User > Change
+  /// Password).
+  Future<void> setUserPassword(String email, String newPassword) async {
+    final conn = await _conn;
+    final r = await conn.query('SELECT id FROM app_users WHERE LOWER(email) = LOWER(?)', [email]);
+    if (r.isEmpty) throw AuthException('User / email tidak ditemukan.');
+    final salt = _newSalt();
+    await conn.query(
+      '''UPDATE app_users SET password_salt = ?, password_hash = SHA2(CONCAT(?, ?), 256),
+         pending_salt = NULL, pending_hash = NULL WHERE LOWER(email) = LOWER(?)''',
+      [salt, salt, newPassword, email],
+    );
+    await _log('update', 'User', email, detail: 'Password diganti owner');
+  }
+
+  /// Riwayat aktivitas terbaru. [module] null = semua modul.
+  Future<List<Map<String, dynamic>>> getActivityLogs({String? module, String? search, int limit = 500}) async {
+    final conn = await _conn;
+    final where = <String>[];
+    final params = <Object?>[];
+    if (module != null && module.isNotEmpty) {
+      where.add('module = ?');
+      params.add(module);
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      where.add('(user_name LIKE ? OR record_label LIKE ? OR detail LIKE ?)');
+      final like = '%${search.trim()}%';
+      params.addAll([like, like, like]);
+    }
+    final sql = 'SELECT * FROM activity_logs ${where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}'} '
+        'ORDER BY id DESC LIMIT $limit';
+    final r = await conn.query(sql, params);
+    return r.map((row) => _convertRow(row.fields)).toList();
+  }
+}
+
+/// Error login / register / approval dengan pesan siap tampil ke user.
+class AuthException implements Exception {
+  final String message;
+  AuthException(this.message);
+  @override
+  String toString() => message;
 }
